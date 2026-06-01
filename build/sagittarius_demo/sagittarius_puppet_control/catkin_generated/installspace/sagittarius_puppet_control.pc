@@ -1,0 +1,8 @@
+prefix=/home/xrlab23/ROS_Files/sagittarius_ws/install
+
+Name: sagittarius_puppet_control
+Description: Description of sagittarius_puppet_control
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: rosbag roscpp tf2_ros rviz sensor_msgs std_msgs std_srvs

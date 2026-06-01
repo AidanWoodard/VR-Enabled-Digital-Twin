@@ -1,0 +1,178 @@
+<!--
+	This file contains the main HTML page for the web interface of the robot.
+	Much of the basis for this code came from Rui Santos's ESP32 tutorials: https://randomnerdtutorials.com/projects-esp32/
+	Modifications made by Collin Schofield, with assistance from Github Copilot.
+-->
+
+<!DOCTYPE html>
+<html>
+	<script src="{{url_for('static', filename='js/main.js')}}"></script>
+	<!-- <script src="https://code.highcharts.com/highcharts.js"></script> -->
+	<link rel="stylesheet" type="text/css" href="{{url_for('static', filename='css/main.css')}}">
+	<head>
+		<title>Arm Control Dashboard</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1"> <!-- Ensures the page is sized correctly for mobile devices -->
+		<!-- <link rel="stylesheet" type="text/css" href="css/MainPage.css"> -->
+		<link rel="icon" href="data:,">
+	</head>
+	<body>
+		<div class = "topnav">
+			<!-- <div class = "header"> -->
+				<h1>Arm Control Dashboard</h1>
+			<!-- </div> -->
+		</div>
+		<div class = "content">
+			<!-- 1st row of cards -->
+			<div class="card-grid">
+				<div class="card">
+					<p class="card-title">Mode</p>
+					<div class = "button-grid">
+						<button class="small-button" onclick="changeMode(LoopState.STOP)">Stop</button>
+						<button class="small-button" onclick="changeMode(LoopState.AUTO)">Auto</button>
+						<button class="small-button" onclick="changeMode(LoopState.MANUAL)">Manual</button>
+						<button class="small-button" onclick="changeMode(LoopState.EXIT)">Exit</button>
+					</div>
+					<p class="card-value"><span id="mode"></span></p>
+				</div>
+			</div>
+			<br>
+			<!-- 2nd row of cards -->
+			<div class = "card-grid">
+				<button class = "card" id="pos1Button" onclick="goToPosition(1)">
+					<p class = "card-title">Position 1</p>
+					<!-- <p class = "card-value"><span id="calibrating"></span></p> -->
+				</button>
+				<button class = "card" id="pos2Button" onclick="goToPosition(2)">
+					<p class = "card-title">Position 2</p>
+					<!-- <p class = "card-value"><span id="botRunning"></span></p> -->
+				</button>
+				<button class = "card" id="pos3Button" onclick="goToPosition(3)">
+					<p class = "card-title">Position 3</p>
+					<!-- <p class = "card-value"><span id="edfState"></span></p> -->
+				</button>
+			</div>
+			<br>
+			<!-- 3rd row of cards -->
+			<div class = "card-grid">
+				<button class = "card" id="grip1Button" onclick="gripperPosition(1)">
+					<p class = "card-title">Grip Position 1</p>
+					<!-- <p class = "card-value"><span id="calibrating"></span></p> -->
+				</button>
+				<button class = "card" id="grip2Button" onclick="gripperPosition(2)">
+					<p class = "card-title">Grip Position 2</p>
+					<!-- <p class = "card-value"><span id="botRunning"></span></p> -->
+				</button>
+				<button class = "card" id="grip3Button" onclick="gripperPosition(3)">
+					<p class = "card-title">Grip Position 3</p>
+					<!-- <p class = "card-value"><span id="edfState"></span></p> -->
+				</button>
+			</div>
+			<br>
+			<!-- Cards for Joint Position Sliders -->
+			<div class = "card-grid">
+				<!-- <div class="card">
+					<p class="card-title">Fader 1</p>
+					<p class="switch">
+						<input type="range" onchange="updateSliderPWM(this)" id="slider1" min="0" max="100" step="1" value ="0" class="slider">
+					</p>
+					<p class="state">Brightness: <span id="sliderValue1"></span> &percnt;</p>
+				</div> -->
+				<div class = "card">
+					<p class = "card-title">Joint 1</p>
+					<p class="switch">
+						<input type="range" min="-115" max="115" value="0" class="slider" id="jointSlider1" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue1"></span> &deg</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Joint 2</p>
+					<p class="switch">
+						<input type="range" min="-90" max="80" value="0" class="slider" id="jointSlider2" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue2"></span>&deg</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Joint 3</p>
+					<p class="switch">
+						<input type="range" min="-85" max="103" value="0" class="slider" id="jointSlider3" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue3"></span>&deg</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Joint 4</p>
+					<p class="switch">
+						<input type="range" min="-166" max="166" value="0" class="slider" id="jointSlider4" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue4"></span>&deg</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Joint 5</p>
+					<p class="switch">
+						<input type="range" min="-103" max="92" value="0" class="slider" id="jointSlider5" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue5"></span>&deg</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Joint 6</p>
+					<p class="switch">
+						<input type="range" min="-178" max="178" value="0" class="slider" id="jointSlider6" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue6"></span>&deg</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Gripper</p>
+					<p class="switch">
+						<input type="range" min="-0.03" max="-0.004" step="0.001" value="-0.004" class="slider" id="jointSlider7" onchange="updateJointSlider(this)">
+					</p>
+					<p class = "card-value"><span id="jointValue7"></span>m</p>
+				</div>
+			</div>
+
+			<!-- <br>
+			<div class="card-grid">4th row of cards
+				<div class = "card">
+					<p class = "card-title">Left Motor Speed</p>
+					<p class = "card-value"><span id="leftMotorSpeed"></span> RPM</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Right Motor Speed</p>
+					<p class = "card-value"><span id="rightMotorSpeed"></span> RPM</p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">Error</p>
+					<p class = "card-value"><span id="error"></span></p>
+				</div>
+			</div> -->
+			<br>
+			<!-- EDF Speed Control Cards -->
+			<!-- <div class="card-grid">
+				<div class = "card">
+					<p class = "card-title">EDF Min Speed</p>
+					<p class = "card-value"><span id="edfMinSpeed"></p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">EDF Lim. Max Speed</p>
+					<p class = "card-value"><span id="edfMaxSpeed"></span></p>
+				</div>
+				<div class = "card">
+					<p class = "card-title">EDF Abs Max Speed</p>
+					<p class = "card-value"><span id="edfAbsMaxSpeed"></p>
+				</div>
+			</div>
+			<br>
+			<form>
+				<div class = "card-grid">
+					<div class = "card">
+						<label for="newTmpEDFSpeed">New EDF Speed: </label>
+						<input type="number" id="newTmpEDFSpeed" step="1" name="newTmpEDFSpeed">
+					</div>
+				</div>
+			</form>
+			<button onclick="submitEDFForm()">Update EDF Speed</button>
+			<br>
+			<div id="chart-sensors" class="container"></div>
+			<div id="chart-error" class="container"></div>
+			<div id="chart-output" class="container"></div> -->
+		</div>
+	</body>
+</html>

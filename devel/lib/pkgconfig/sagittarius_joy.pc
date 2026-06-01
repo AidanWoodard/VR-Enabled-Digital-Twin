@@ -1,0 +1,8 @@
+prefix=/home/xrlab23/ROS_Files/sagittarius_ws/devel
+
+Name: sagittarius_joy
+Description: Description of sagittarius_joy
+Version: 0.0.0
+Cflags: -I/home/xrlab23/ROS_Files/sagittarius_ws/devel/include
+Libs: -L${prefix}/lib -lsagittarius_joy
+Requires: roscpp rospy joy sdk_sagittarius_arm sensor_msgs

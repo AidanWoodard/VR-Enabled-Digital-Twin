@@ -1,0 +1,9 @@
+\subsubsection parameters ROS parameters
+
+Reads and maintains the following parameters on the ROS server
+
+- \b "~example" : \b [str] this is an example,type:str_t,double_t,int_t,bool_t min: , default: hello world, max: 
+- \b "~min_ang" : \b [double] The angle of the first range measurement [rad]. min: -2.356194490192345, default: -2.356194490192345, max: 2.356194490192345
+- \b "~skip" : \b [int] The number min: 0, default: 0, max: 9
+- \b "~debug_mode" : \b [bool] Run in debug mode min: False, default: False, max: True
+

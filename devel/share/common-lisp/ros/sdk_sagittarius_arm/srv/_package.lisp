@@ -1,0 +1,15 @@
+(cl:defpackage sdk_sagittarius_arm-srv
+  (:use )
+  (:export
+   "ARMINFO"
+   "<ARMINFO-REQUEST>"
+   "ARMINFO-REQUEST"
+   "<ARMINFO-RESPONSE>"
+   "ARMINFO-RESPONSE"
+   "SERVORTINFO"
+   "<SERVORTINFO-REQUEST>"
+   "SERVORTINFO-REQUEST"
+   "<SERVORTINFO-RESPONSE>"
+   "SERVORTINFO-RESPONSE"
+  ))
+

@@ -1,0 +1,13 @@
+<launch>
+  <!-- Load the robot model -->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find sagittarius_descriptions)/urdf/sgr532.urdf.xacro'" />
+
+  <!-- Simulate joint states -->
+  <node pkg="joint_state_publisher_gui" type="joint_state_publisher_gui" name="joint_state_publisher_gui" />
+
+  <!-- Broadcast TFs -->
+  <node pkg="robot_state_publisher" type="robot_state_publisher" name="robot_state_publisher" />
+
+  <!-- RViz for visualization -->
+  <node pkg="rviz" type="rviz" name="rviz" />
+</launch>

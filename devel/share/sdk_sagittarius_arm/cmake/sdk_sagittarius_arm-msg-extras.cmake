@@ -1,0 +1,2 @@
+set(sdk_sagittarius_arm_MESSAGE_FILES "/home/xrlab23/ROS_Files/sagittarius_ws/src/sdk_sagittarius_arm/msg/ArmRadControl.msg;/home/xrlab23/ROS_Files/sagittarius_ws/src/sdk_sagittarius_arm/msg/SingleRadControl.msg")
+set(sdk_sagittarius_arm_SERVICE_FILES "/home/xrlab23/ROS_Files/sagittarius_ws/src/sdk_sagittarius_arm/srv/ArmInfo.srv;/home/xrlab23/ROS_Files/sagittarius_ws/src/sdk_sagittarius_arm/srv/ServoRtInfo.srv")

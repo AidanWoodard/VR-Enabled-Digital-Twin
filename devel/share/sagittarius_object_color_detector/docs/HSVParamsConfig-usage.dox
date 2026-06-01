@@ -1,0 +1,15 @@
+\subsubsection usage Usage
+\verbatim
+<node name="sagittarius_object_color_detector_configure" pkg="sagittarius_object_color_detector" type="sagittarius_object_color_detector_configure">
+  <param name="HSV_Enable" type="bool" value="True" />
+  <param name="color_type" type="int" value="0" />
+  <param name="H_Max" type="int" value="360" />
+  <param name="H_Min" type="int" value="0" />
+  <param name="S_Max" type="int" value="255" />
+  <param name="S_Min" type="int" value="0" />
+  <param name="V_Max" type="int" value="255" />
+  <param name="V_Min" type="int" value="0" />
+  <param name="H_Extend" type="int" value="0" />
+</node>
+\endverbatim
+

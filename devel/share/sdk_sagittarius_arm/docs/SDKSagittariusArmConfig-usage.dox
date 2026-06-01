@@ -1,0 +1,10 @@
+\subsubsection usage Usage
+\verbatim
+<node name="sdk_sagittarius_arm" pkg="sdk_sagittarius_arm" type="sdk_sagittarius_arm">
+  <param name="example" type="str" value="hello world" />
+  <param name="min_ang" type="double" value="-2.356194490192345" />
+  <param name="skip" type="int" value="0" />
+  <param name="debug_mode" type="bool" value="False" />
+</node>
+\endverbatim
+

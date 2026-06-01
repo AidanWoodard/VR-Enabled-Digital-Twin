@@ -1,0 +1,14 @@
+\subsubsection parameters ROS parameters
+
+Reads and maintains the following parameters on the ROS server
+
+- \b "~HSV_Enable" : \b [bool] Output HSV Filter min: False, default: True, max: True
+- \b "~color_type" : \b [int] Cube Color min: -2147483648, default: 0, max: 2147483647
+- \b "~H_Max" : \b [int] Hue Max min: 0, default: 360, max: 360
+- \b "~H_Min" : \b [int] Hue Min min: 0, default: 0, max: 360
+- \b "~S_Max" : \b [int] Saturation Max min: 0, default: 255, max: 255
+- \b "~S_Min" : \b [int] Saturation Min min: 0, default: 0, max: 255
+- \b "~V_Max" : \b [int] Value Max min: 0, default: 255, max: 255
+- \b "~V_Min" : \b [int] Value Min min: 0, default: 0, max: 255
+- \b "~H_Extend" : \b [int] The range of red Hue includes two areas: 0~60 and 300~360. Extending 0~60 can cover red more completely. After the extension, the default maximum value of Hue is 360.Enable only in red type. min: 0, default: 0, max: 60
+

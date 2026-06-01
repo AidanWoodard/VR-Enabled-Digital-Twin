@@ -1,0 +1,17 @@
+digraph G {
+"sgr532/link6" -> "sgr532/ar_tag_link"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1749058313.342 sec old)\nBuffer length: 0.000 sec\n"];
+"sgr532/link5" -> "sgr532/link6"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link6" -> "sgr532/link_grasping_frame"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1749058313.342 sec old)\nBuffer length: 0.000 sec\n"];
+"sgr532/link6" -> "sgr532/usb_cam_link"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1749058313.342 sec old)\nBuffer length: 0.000 sec\n"];
+"sgr532/base_link" -> "sgr532/link1"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link1" -> "sgr532/link2"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link2" -> "sgr532/link3"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link3" -> "sgr532/link4"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link4" -> "sgr532/link5"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link6" -> "sgr532/link_gripper_left"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+"sgr532/link6" -> "sgr532/link_gripper_right"[label="Broadcaster: /robot_state_publisher\nAverage rate: 10.204 Hz\nMost recent transform: 1749058313.258 ( 0.084 sec old)\nBuffer length: 4.900 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1749058313.342"[ shape=plaintext ] ;
+ }->"sgr532/base_link";
+}

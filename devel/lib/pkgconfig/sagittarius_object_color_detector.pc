@@ -1,0 +1,8 @@
+prefix=/home/xrlab23/ROS_Files/sagittarius_ws/devel
+
+Name: sagittarius_object_color_detector
+Description: Description of sagittarius_object_color_detector
+Version: 0.0.0
+Cflags: -I/home/xrlab23/ROS_Files/sagittarius_ws/devel/include
+Libs: -L${prefix}/lib 
+Requires: 
