@@ -82,7 +82,18 @@ class RealTimeIKSolver:
     def joint_state_callback(self, msg):
         # Save current joint positions (in order of self.joint_names)
         name_to_pos = dict(zip(msg.name, msg.position))
-        self.current_joints = [name_to_pos.get(j, 0.0) for j in self.joint_names]
+
+	# Only initialize or update if the joint is actually present in the message
+        new_joints = []
+        for j in self.joint_names:
+            if j in name_to_pos:
+                new_joints.append(name_to_pos[j])
+            elif self.current_joints:
+                # Fall back to last known good position instead of 0.0
+                new_joints.append(self.current_joints[self.joint_names.index(j)])
+            else:
+                new_joints.append(0.0)
+        self.current_joints = new_joints
 
     def move_to_home(self, home_joints):
         rospy.loginfo(f"[IK Solver] Moving to Home position: {home_joints}")
@@ -103,11 +114,7 @@ class RealTimeIKSolver:
     def pose_changed_significantly(self, p1, p2):
         if p1 is None or p2 is None:
             return True
-        pos_diff = math.sqrt(
-            (p1.position.x - p2.position.x) ** 2 +
-            (p1.position.y - p2.position.y) ** 2 +
-            (p1.position.z - p2.position.z) ** 2
-        )
+        pos_diff = self._get_distance(p1, p2)
         rot_diff = abs(p1.orientation.x - p2.orientation.x) + \
                    abs(p1.orientation.y - p2.orientation.y) + \
                    abs(p1.orientation.z - p2.orientation.z) + \
@@ -115,8 +122,12 @@ class RealTimeIKSolver:
         return pos_diff > self.position_threshold or rot_diff > self.rotation_threshold
 
     def pose_callback(self, pose_msg):
+        # ignore very small changes, ensure smooth movementk
         if not self.pose_changed_significantly(pose_msg.pose, self.last_pose):
             return
+
+        # make sure to update the distance before resetting the previous position
+        distance = self._get_distance(pose_msg.pose, self.last_pose)
         self.last_pose = pose_msg.pose
 
         # Solve IK for VR target pose
@@ -150,16 +161,29 @@ class RealTimeIKSolver:
             start_point.time_from_start = rospy.Duration(0.0)
             goal.trajectory.points.append(start_point)
 
+        # map the execution_time based on how big the distance between the new and old points is
+        execution_time = max(0.2, min(0.6, distance * 1.8))
+
         # Second point: IK solution
         end_point = JointTrajectoryPoint()
         end_point.positions = joint_positions
         end_point.velocities = [0.0] * len(joint_positions)
-        end_point.time_from_start = rospy.Duration(0.5)  # 0.5s for smooth move
+        end_point.time_from_start = rospy.Duration(execution_time)  # execution_time dependent on distance
         goal.trajectory.points.append(end_point)
 
         self.client.send_goal(goal)
         self.current_joints = joint_positions
         rospy.loginfo_throttle(1.0, "[IK Solver] Sent trajectory goal to controller.")
+
+    def _get_distance(self, p1, p2):
+        if p1 is None or p2 is None:
+            return 0
+
+        return math.sqrt(
+            (p1.position.x - p2.position.x) ** 2 +
+            (p1.position.y - p2.position.y) ** 2 +
+            (p1.position.z - p2.position.z) ** 2
+        )
 
 if __name__ == "__main__":
     try:
