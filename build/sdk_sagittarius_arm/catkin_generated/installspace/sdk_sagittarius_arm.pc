@@ -1,8 +1,0 @@
-prefix=/home/xrlab23/ROS_Files/sagittarius_ws/install
-
-Name: sdk_sagittarius_arm
-Description: Description of sdk_sagittarius_arm
-Version: 0.0.1
-Cflags: -I${prefix}/include -I/usr/include
-Libs: -L${prefix}/lib -lsdk_sagittarius_arm_lib /usr/lib/x86_64-linux-gnu/libboost_system.so.1.71.0
-Requires: roscpp sensor_msgs diagnostic_updater dynamic_reconfigure

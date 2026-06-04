@@ -1,0 +1,5 @@
+# Ignore ROS compliation build spaces
+build/
+devel/
+logs/
+.catkin_workspace

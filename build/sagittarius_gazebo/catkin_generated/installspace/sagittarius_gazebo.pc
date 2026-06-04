@@ -1,8 +1,0 @@
-prefix=/home/xrlab23/ROS_Files/sagittarius_ws/install
-
-Name: sagittarius_gazebo
-Description: Description of sagittarius_gazebo
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: controller_manager effort_controllers gazebo_ros gazebo_ros_control sagittarius_descriptions joint_state_controller joint_trajectory_controller

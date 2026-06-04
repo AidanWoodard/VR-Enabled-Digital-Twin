@@ -1,8 +1,0 @@
-prefix=/home/xrlab23/ROS_Files/sagittarius_ws/install
-
-Name: sagittarius_drawstar_and_display
-Description: Description of sagittarius_drawstar_and_display
-Version: 1.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 

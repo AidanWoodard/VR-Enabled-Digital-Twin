@@ -1,8 +1,0 @@
-prefix=/home/xrlab23/ROS_Files/sagittarius_ws/devel
-
-Name: unity_vr_control
-Description: Description of unity_vr_control
-Version: 0.0.0
-Cflags: 
-Libs: -L${prefix}/lib 
-Requires: 
