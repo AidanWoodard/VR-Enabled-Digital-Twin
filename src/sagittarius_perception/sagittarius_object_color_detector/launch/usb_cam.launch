@@ -11,7 +11,7 @@
       <param name="pixel_format" value="$(arg pixel_form)" />
       <param name="framerate" value="30" />
       <param name="camera_frame_id" value="usb_cam" />
-      <param name="io_method" value="mmap"/>
+      <param name="io_method" value="userptr"/>
     </node>
   </group>
 
@@ -19,13 +19,13 @@
     <arg name="video_dev" default="/dev/video2" />
     <arg name="pixel_form" default="mjpeg" />
 
-    <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" launch-prefix="bash -c 'sleep 4; $0 $@' " >
       <param name="video_device" value="$(arg video_dev)" />
       <param name="image_width" value="640" />
       <param name="image_height" value="480" />
       <param name="pixel_format" value="$(arg pixel_form)" />
       <param name="framerate" value="30" />
-      <param name="camera_frame_id" value="usb_cam" />
+      <param name="camera_frame_id" value="usb_cam2" />
       <param name="io_method" value="mmap"/>
     </node> 
   </group>
