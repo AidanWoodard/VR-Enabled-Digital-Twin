@@ -7,8 +7,8 @@
   <group ns="cam1">
     <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
       <param name="video_device" value="$(arg video_dev1)" />
-      <param name="image_width" value="640" />
-      <param name="image_height" value="480" />
+      <param name="image_width" value="1280" />
+      <param name="image_height" value="960" />
       <param name="pixel_format" value="$(arg pixel_form1)" />
       <param name="framerate" value="30" />
       <param name="camera_frame_id" value="usb_cam" />
@@ -19,8 +19,8 @@
   <group ns="cam2">
     <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" launch-prefix="bash -c 'sleep 4; $0 $@' " >
       <param name="video_device" value="$(arg video_dev2)" />
-      <param name="image_width" value="640" />
-      <param name="image_height" value="480" />
+      <param name="image_width" value="1280" />
+      <param name="image_height" value="960" />
       <param name="pixel_format" value="$(arg pixel_form2)" />
       <param name="framerate" value="30" />
       <param name="camera_frame_id" value="usb_cam2" />
