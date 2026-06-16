@@ -1,0 +1,4 @@
+int32 slot_id
+---
+bool success
+string message
