@@ -2,7 +2,6 @@
 
 import rospy
 import math
-import actionlib
 from geometry_msgs.msg import PoseStamped
 
 # ==============================================================================
@@ -12,7 +11,7 @@ from geometry_msgs.msg import PoseStamped
 # from moveit_commander import RobotCommander, PlanningSceneInterface, MoveGroupCommander, roscpp_initialize
 
 from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest
-from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
+from control_msgs.msg import FollowJointTrajectoryGoal
 from trajectory_msgs.msg import JointTrajectoryPoint
 from sensor_msgs.msg import JointState
 
@@ -41,14 +40,15 @@ class RealTimeIKSolver:
         self.joint_names = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
         rospy.loginfo(f"[IK Solver] Joint names bypassed & hardcoded: {self.joint_names}")
 
-        # Action client for the arm controller
-        self.client = actionlib.SimpleActionClient(
-            "/sgr532/sagittarius_arm_controller/follow_joint_trajectory",
-            FollowJointTrajectoryAction,
+        # Publish trajectory goals to the MUX node (arm_bag_recorder) rather than
+        # connecting directly to the arm action server. The MUX owns the real
+        # connection and gates goals based on record/play state.
+        self.ik_goal_pub = rospy.Publisher(
+            "/sgr532/ik_goal_cmd",
+            FollowJointTrajectoryGoal,
+            queue_size=1,
         )
-        rospy.loginfo("[IK Solver] Waiting for trajectory action server...")
-        self.client.wait_for_server()
-        rospy.loginfo("[IK Solver] Connected to action server.")
+        rospy.loginfo("[IK Solver] Goal publisher created → /sgr532/ik_goal_cmd")
 
         # IK service
         rospy.wait_for_service("/sgr532/compute_ik")
@@ -107,8 +107,9 @@ class RealTimeIKSolver:
         point.time_from_start = rospy.Duration(3.0)
         goal.trajectory.points.append(point)
 
-        self.client.send_goal_and_wait(goal)
-        rospy.loginfo("[IK Solver] Reached Home position.")
+        self.ik_goal_pub.publish(goal)
+        rospy.loginfo("[IK Solver] Home goal published — waiting 3.5 s for motion to complete.")
+        rospy.sleep(3.5)
         self.current_joints = home_joints
 
     def pose_changed_significantly(self, p1, p2):
@@ -171,7 +172,7 @@ class RealTimeIKSolver:
         end_point.time_from_start = rospy.Duration(execution_time)  # execution_time dependent on distance
         goal.trajectory.points.append(end_point)
 
-        self.client.send_goal(goal)
+        self.ik_goal_pub.publish(goal)
         self.current_joints = joint_positions
         rospy.loginfo_throttle(1.0, "[IK Solver] Sent trajectory goal to controller.")
 

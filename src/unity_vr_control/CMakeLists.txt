@@ -209,6 +209,8 @@ include_directories(
 
 catkin_install_python(PROGRAMS
   scripts/unity_vr_goal_listener.py
+  scripts/light_ik_solver.py
+  scripts/arm_bag_recorder.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
