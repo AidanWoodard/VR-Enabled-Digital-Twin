@@ -2,5 +2,31 @@
 build/
 devel/
 logs/
-ref/
 .catkin_workspace
+
+
+# Claude/agentic work or docs
+# --- Claude Code Personal/Local Overrides ---
+CLAUDE.local.md
+.claude/settings.local.json
+
+# --- Claude Code Internal App Data & Logs ---
+.claude.json
+.claude.json.backup.*
+security_warnings_*.json
+stats-cache.json
+
+# --- Session Memory & Cache ---
+.claude/memory/
+.claude/history.jsonl
+.claude/backups/
+.claude/cache/
+.claude/debug/
+.claude/file-history/
+.claude/paste-cache/
+.claude/plans/
+.claude/tasks/
+.claude/worktrees/
+
+# --- Python build artifacts ---
+__pycache__/
