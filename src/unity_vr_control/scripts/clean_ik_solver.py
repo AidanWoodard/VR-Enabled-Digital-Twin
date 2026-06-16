@@ -4,12 +4,7 @@ import rospy
 import math
 import actionlib
 from geometry_msgs.msg import PoseStamped
-
-# ==============================================================================
-# CHANGED: Commented out MoveGroupCommander imports because their internal C++ 
-# node handles create initialization race conditions/deadlocks on this machine.
-# ==============================================================================
-# from moveit_commander import RobotCommander, PlanningSceneInterface, MoveGroupCommander, roscpp_initialize
+from moveit_commander import RobotCommander, PlanningSceneInterface, MoveGroupCommander, roscpp_initialize
 
 from moveit_msgs.srv import GetPositionIK, GetPositionIKRequest
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
@@ -18,25 +13,15 @@ from sensor_msgs.msg import JointState
 
 class RealTimeIKSolver:
     def __init__(self):
-        # ==============================================================================
-        # CHANGED: Commented out roscpp_initialize because we are no longer using the 
-        # C++ wrappers inside moveit_commander. Pure rospy handles everything now.
-        # ==============================================================================
-        # roscpp_initialize([])
+        roscpp_initialize([])
         
         rospy.init_node("light_ik_solver", anonymous=True)
 
-        # ==============================================================================
-        # CHANGED: Bypassed MoveGroupCommander completely. Instead of dynamically querying
-        # the MoveIt parameter server for joint names (which triggers the handshake hang), 
-        # we explicitly hardcode the static Sagittarius arm joint list.
-        # Modify this array if your URDF joint names ever change.
-        # ==============================================================================
-        # self.robot = RobotCommander(robot_description="/sgr532/robot_description")
-        # self.scene = PlanningSceneInterface()
-        # self.group = MoveGroupCommander("sagittarius_arm")
-        # self.group.set_pose_reference_frame("base_link")
-        # self.joint_names = self.group.get_active_joints()
+        self.robot = RobotCommander(robot_description="/sgr532/robot_description")
+        self.scene = PlanningSceneInterface()
+        self.group = MoveGroupCommander("sagittarius_arm")
+        self.group.set_pose_reference_frame("base_link")
+        self.joint_names = self.group.get_active_joints()
         
         self.joint_names = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
         rospy.loginfo(f"[IK Solver] Joint names bypassed & hardcoded: {self.joint_names}")
