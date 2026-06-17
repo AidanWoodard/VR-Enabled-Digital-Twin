@@ -5,4 +5,5 @@
        not safety-critical, but starting the MUX first avoids the wait. -->
   <node pkg="unity_vr_control" type="arm_bag_recorder.py" name="arm_bag_recorder" output="screen" />
   <node pkg="unity_vr_control" type="light_ik_solver.py" name="light_ik_solver" output="screen" />
+  <node pkg="unity_vr_control" type="dashboard_controller.py" name="dashboard_controller" output="screen" />
 </launch>

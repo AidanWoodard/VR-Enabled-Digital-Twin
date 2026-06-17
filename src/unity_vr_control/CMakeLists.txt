@@ -9,6 +9,7 @@ project(unity_vr_control)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
+  message_generation
   moveit_commander
   roscpp
   rospy
@@ -56,11 +57,13 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-#   FILES
-#   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  DashboardRecord.srv
+  DashboardPlayback.srv
+  DashboardQuerySlots.srv
+  DashboardClear.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -70,10 +73,10 @@ find_package(catkin REQUIRED COMPONENTS
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-#   DEPENDENCIES
-#   geometry_msgs#   std_msgs
-# )
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -105,10 +108,7 @@ find_package(catkin REQUIRED COMPONENTS
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
 catkin_package(
-#  INCLUDE_DIRS include
-#  LIBRARIES unity_vr_control
-#  CATKIN_DEPENDS geometry_msgs moveit_commander roscpp rospy std_msgs
-#  DEPENDS system_lib
+  CATKIN_DEPENDS message_runtime std_msgs
 )
 
 ###########
@@ -211,6 +211,7 @@ catkin_install_python(PROGRAMS
   scripts/unity_vr_goal_listener.py
   scripts/light_ik_solver.py
   scripts/arm_bag_recorder.py
+  scripts/dashboard_controller.py
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
