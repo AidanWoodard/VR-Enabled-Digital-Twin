@@ -80,3 +80,8 @@ export ROS_MASTER_URI=http://192.168.1.100:11311
 ```
 
 Campus Wi-Fi blocks peer-to-peer TCP (AP isolation) — use the direct Cat6 cable or a dedicated local router.
+
+## Todo?
+
+- `unity_vr_control/CMakeLists.txt` has `add_service_files()`/`generate_messages()` commented out, and `catkin_install_python(PROGRAMS ...)` is missing `dashboard_controller.py` (only `unity_vr_goal_listener.py`, `light_ik_solver.py`, and `arm_bag_recorder.py` are listed). The 4 `Dashboard*.srv` files in `srv/` are never declared for message generation, and `dashboard_controller.py` isn't installed as an executable — this likely needs fixing for the dashboard's services to build/run correctly.
+- On startup, consider spawning a Haiku subagent to research this CMakeLists.txt gap (check current `catkin_install_python` contents and whether `add_service_files`/`generate_messages` are still commented out) before relying on the dashboard controller's services.
