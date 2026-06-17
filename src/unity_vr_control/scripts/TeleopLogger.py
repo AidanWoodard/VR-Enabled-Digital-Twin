@@ -7,7 +7,7 @@ from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Float64
 
 # Path to store your poses
-SAVE_PATH = os.path.expanduser("~/sagittarius_ws/src/sagittarius_arm_ros/unity_vr_control/scripts/teleop_poses.json")
+SAVE_PATH = os.path.expanduser("~/ROS_Files/sagittarius_ws/src/unity_vr_control/scripts/teleop_poses.json")
 
 # Initialize list to store poses and the latest gripper value
 saved_poses = []

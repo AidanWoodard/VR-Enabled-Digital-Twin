@@ -74,6 +74,16 @@ Each of the following steps should be done in their own WSL window, including th
 
 
 
+=====SHORTCUT=====
+
+**Note:** Steps 2\) through 5\) below (MoveIt/driver, Unity TCP endpoint, MUX, and the IK solver) can now be replaced by a single combined launch command:
+
+&#x09;**roslaunch unity\_vr\_control full\_system.launch**
+
+Add **serialname:=/dev/tty<your\_specific\_ending>** at the end if your port isn't ttyACM0. The manual step-by-step below is still useful for debugging individual pieces in their own separate terminal windows.
+
+
+
 =====SETUP\_PROCEDURE=====
 
 1\) Connecting USB to WSL
@@ -134,7 +144,19 @@ You should see messages when Unity is running and not running! This is the first
 
 
 
-4\) Running the Inverse Kinematics Solver
+4\) Running the MUX (arm\_bag\_recorder.py)
+
+\- This node owns the only sanctioned connection to the arm's follow\_joint\_trajectory action server, and is the only subscriber on the /sgr532/ik\_goal\_cmd topic. It must be running before the IK solver in step 5\) is started, since light\_ik\_solver.py publishes a "move to home" goal to /sgr532/ik\_goal\_cmd on startup and needs a subscriber there to receive it. Source:
+
+&#x09;**source devel/setup.bash**
+
+\- Run:
+
+&#x09;**rosrun unity\_vr\_control arm\_bag\_recorder.py**
+
+
+
+5\) Running the Inverse Kinematics Solver
 
 \- This will be what converts the coordinates outputted by Unity into usable robot path trajectories using a simple Inverse Kinematics solver (written in Python, uses ROS libraries). Source:
 
@@ -142,11 +164,11 @@ You should see messages when Unity is running and not running! This is the first
 
 \- Run using rosrun and .py, NOT as before:
 
-&#x09;**rosrun unity\_vr\_control clean\_ik\_solver.py**
+&#x09;**rosrun unity\_vr\_control light\_ik\_solver.py**
 
 
 
-**Note:** Alternatively, run light\_ik\_solver.py instead. They should both work, but clean\_ik\_solver.py has more safety features. It will prevent common collision points with the table and itself by using the MoveGroupCommander library. If that's giving issues though or saying 'No IK solution for pose: xxx' for an obvious position, try light\_ik\_solver.py instead.
+**Warning:** Do NOT run clean\_ik\_solver.py. It is dead/unused code that has not been updated for the MUX architecture \- it still opens its own direct actionlib.SimpleActionClient to the follow\_joint\_trajectory action server, which will fight with the MUX (arm\_bag\_recorder.py) over the same action server if both are running. It also calls rospy.init\_node("light\_ik\_solver", ...) \- the exact same node name light\_ik\_solver.py uses \- so running both at once causes a node name collision. Only light\_ik\_solver.py is correct in the current setup.
 
 
 

@@ -107,10 +107,18 @@ class RealTimeIKSolver:
         point.time_from_start = rospy.Duration(3.0)
         goal.trajectory.points.append(point)
 
+        self._wait_for_mux_subscriber()
         self.ik_goal_pub.publish(goal)
         rospy.loginfo("[IK Solver] Home goal published — waiting 3.5 s for motion to complete.")
         rospy.sleep(3.5)
         self.current_joints = home_joints
+
+    def _wait_for_mux_subscriber(self):
+        # The MUX (arm_bag_recorder) is the only subscriber on /sgr532/ik_goal_cmd.
+        # Publishing before it's up silently drops the goal, so block until it's there.
+        while self.ik_goal_pub.get_num_connections() == 0 and not rospy.is_shutdown():
+            rospy.logwarn_throttle(2.0, "[IK Solver] Waiting for MUX (arm_bag_recorder) to subscribe to /sgr532/ik_goal_cmd...")
+            rospy.sleep(0.1)
 
     def pose_changed_significantly(self, p1, p2):
         if p1 is None or p2 is None:
@@ -171,6 +179,10 @@ class RealTimeIKSolver:
         end_point.velocities = [0.0] * len(joint_positions)
         end_point.time_from_start = rospy.Duration(execution_time)  # execution_time dependent on distance
         goal.trajectory.points.append(end_point)
+
+        if self.ik_goal_pub.get_num_connections() == 0:
+            rospy.logwarn_throttle(2.0, "[IK Solver] No MUX subscriber on /sgr532/ik_goal_cmd — dropping teleop goal.")
+            return
 
         self.ik_goal_pub.publish(goal)
         self.current_joints = joint_positions

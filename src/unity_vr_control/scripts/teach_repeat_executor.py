@@ -8,7 +8,7 @@ import moveit_commander
 from geometry_msgs.msg import PoseStamped, Point, Quaternion
 from std_msgs.msg import Float64
 
-JSON_PATH = os.path.expanduser("~/sagittarius_ws/src/sagittarius_arm_ros/unity_vr_control/scripts/teleop_poses.json")
+JSON_PATH = os.path.expanduser("~/ROS_Files/sagittarius_ws/src/unity_vr_control/scripts/teleop_poses.json")
 
 def main():
     rospy.init_node("teach_repeat_executor")

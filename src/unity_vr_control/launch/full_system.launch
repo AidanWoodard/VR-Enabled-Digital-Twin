@@ -1,0 +1,16 @@
+<launch>
+  <!-- Single entry point: roscore + arm driver + MoveIt, Unity TCP endpoint,
+       and the MUX/IK pair. Equivalent to running rosclaunch, sgrlaunch,
+       endplaunch, and unity_vr_control.launch by hand, in order.
+       Webcams (camlaunch) are intentionally not included here — v4l2 device
+       claiming has its own timing concerns, run that separately. -->
+  <arg name="serialname" default="/dev/ttyACM0" />
+
+  <include file="$(find sagittarius_moveit)/launch/sgr532_moveit_in_spark.launch">
+    <arg name="serialname" value="$(arg serialname)" />
+  </include>
+
+  <include file="$(find ros_tcp_endpoint)/launch/endpoint.launch" />
+
+  <include file="$(find unity_vr_control)/launch/unity_vr_control.launch" />
+</launch>

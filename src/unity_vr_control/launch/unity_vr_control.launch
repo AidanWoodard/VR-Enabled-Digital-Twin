@@ -1,0 +1,8 @@
+<launch>
+  <!-- MUX must come up first: it owns the action-server connection and is the
+       only subscriber on /sgr532/ik_goal_cmd. light_ik_solver.py now waits for
+       this subscriber before publishing its home goal, so node order here is
+       not safety-critical, but starting the MUX first avoids the wait. -->
+  <node pkg="unity_vr_control" type="arm_bag_recorder.py" name="arm_bag_recorder" output="screen" />
+  <node pkg="unity_vr_control" type="light_ik_solver.py" name="light_ik_solver" output="screen" />
+</launch>
