@@ -58,8 +58,10 @@ def handle_record(req):
         return DashboardRecordResponse(success=True, message=f"Recording started for slot {slot}")
     else:
         proc = record_procs.pop(slot, None)
-        if proc is None or proc.poll() is not None:
+        if proc is None:
             return DashboardRecordResponse(success=False, message=f"Slot {slot} not recording")
+        if proc.poll() is not None:
+            return DashboardRecordResponse(success=True, message=f"Slot {slot} recording already finished")
 
         # Send SIGINT so rosbag writes its index before exiting
         proc.send_signal(signal.SIGINT)
@@ -92,8 +94,10 @@ def handle_playback(req):
         return DashboardPlaybackResponse(success=True, message=f"Playback started for slot {slot}")
     else:
         proc = playback_procs.pop(slot, None)
-        if proc is None or proc.poll() is not None:
+        if proc is None:
             return DashboardPlaybackResponse(success=False, message=f"Slot {slot} not playing")
+        if proc.poll() is not None:
+            return DashboardPlaybackResponse(success=True, message=f"Slot {slot} playback already finished")
 
         proc.send_signal(signal.SIGINT)
         try:
