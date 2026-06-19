@@ -76,6 +76,9 @@ def handle_record(req):
 # ── Playback service ───────────────────────────────────────────────────────────
 
 def handle_playback(req):
+    # TODO: unlike arm_bag_recorder.py's MUX, this service has no joint-state
+    # tracking or action client, so it can't pre-position the arm to the bag's
+    # initial pose before playback starts (see arm_bag_recorder._cmd_play).
     slot = req.slot_id
     if slot < 1 or slot > 5:
         return DashboardPlaybackResponse(success=False, message=f"Invalid slot {slot}")

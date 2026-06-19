@@ -28,6 +28,7 @@ class ArmBagRecorder:
         self._active_slot = None
         self._proc = None
         self._state_lock = threading.Lock()
+        self._latest_real_js = None
 
         self._arm_client = actionlib.SimpleActionClient(
             "/sgr532/sagittarius_arm_controller/follow_joint_trajectory",
@@ -44,6 +45,7 @@ class ArmBagRecorder:
         rospy.Subscriber("/sgr532/bag_control", String, self._control_callback)
         rospy.Subscriber("/sgr532/ik_goal_cmd", FollowJointTrajectoryGoal, self._ik_goal_callback)
         rospy.Subscriber(PLAYBACK_JS_TOPIC, JointState, self._playback_js_callback)
+        rospy.Subscriber("/sgr532/joint_states", JointState, self._real_js_callback)
 
         rospy.Timer(rospy.Duration(1.0 / PLAYBACK_RATE_HZ), self._playback_timer_cb)
 
@@ -85,6 +87,56 @@ class ArmBagRecorder:
             except subprocess.TimeoutExpired:
                 self._proc.kill()
         self._proc = None
+
+    def _peek_initial_positions(self, bag_path):
+        # rosbag play -r 0 still publishes the first frame (t=0) but never
+        # advances bag time, so it effectively latches just that one message.
+        proc = subprocess.Popen(
+            ["rosbag", "play", "-r", "0", bag_path,
+             f"/sgr532/joint_states:={PLAYBACK_JS_TOPIC}"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            msg = rospy.wait_for_message(PLAYBACK_JS_TOPIC, JointState, timeout=3.0)
+            name_to_pos = dict(zip(msg.name, msg.position))
+            positions = [name_to_pos.get(j, 0.0) for j in JOINT_NAMES]
+        except rospy.ROSException:
+            rospy.logwarn("[BagRecorder] Timed out peeking bag's initial pose.")
+            positions = None
+        finally:
+            if proc.poll() is None:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=2.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+        return positions
+
+    def _move_to_and_wait(self, positions, tolerance=0.05, timeout=5.0):
+        goal = FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = JOINT_NAMES
+        goal.trajectory.header.stamp = rospy.Time.now()
+
+        pt = JointTrajectoryPoint()
+        pt.positions = positions
+        pt.velocities = [0.0] * len(JOINT_NAMES)
+        pt.time_from_start = rospy.Duration(2.0)
+        goal.trajectory.points.append(pt)
+
+        self._arm_client.send_goal(goal)
+
+        rate = rospy.Rate(20)
+        deadline = rospy.Time.now() + rospy.Duration(timeout)
+        while rospy.Time.now() < deadline:
+            js = self._latest_real_js
+            if js is not None:
+                name_to_pos = dict(zip(js.name, js.position))
+                current = [name_to_pos.get(j, 0.0) for j in JOINT_NAMES]
+                if max(abs(c - t) for c, t in zip(current, positions)) < tolerance:
+                    return
+            rate.sleep()
+        rospy.logwarn("[BagRecorder] Timed out waiting to reach initial pose; proceeding anyway.")
 
     # ── command handlers ──────────────────────────────────────────────────────
 
@@ -130,6 +182,14 @@ class ArmBagRecorder:
             rospy.logwarn(f"[BagRecorder] Slot {slot} bag not found: {bag_path}")
             return
         self._cmd_stop()
+
+        positions = self._peek_initial_positions(bag_path)
+        if positions is not None:
+            rospy.loginfo(f"[BagRecorder] Pre-positioning to slot {slot} start pose...")
+            self._move_to_and_wait(positions)
+        else:
+            rospy.logwarn(f"[BagRecorder] Could not read initial pose for slot {slot}; skipping pre-position.")
+
         # Remap joint_states to a shadow topic so live hardware encoder feedback
         # is not polluted by replayed data. Gripper commands are NOT remapped —
         # they go directly to the gripper hardware, which is correct during playback.
@@ -164,6 +224,9 @@ class ArmBagRecorder:
             rospy.loginfo(f"[BagRecorder] Slot {slot} already empty.")
 
     # ── topic callbacks ────────────────────────────────────────────────────────
+
+    def _real_js_callback(self, msg):
+        self._latest_real_js = msg
 
     def _ik_goal_callback(self, goal):
         with self._state_lock:

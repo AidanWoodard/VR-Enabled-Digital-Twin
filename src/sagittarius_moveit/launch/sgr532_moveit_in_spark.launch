@@ -68,13 +68,14 @@
   </include>
 
   <!-- Run Rviz and load the default config to see the state of the move_group node -->
+  <!--
   <include file="$(dirname)/moveit_rviz.launch" if="$(arg use_rviz)">
     <arg name="robot_name"  value="$(arg robot_name)"/>
     <arg name="robot_model" value="$(arg robot_model)"/>
     <arg name="rviz_config" value="$(dirname)/$(arg rviz_file_name)"/>
     <arg name="debug" value="$(arg debug)"/>
   </include>
-
+  -->
   <!-- If database loading was enabled, start mongodb as well -->
   <include file="$(dirname)/default_warehouse_db.launch" if="$(arg db)">
     <arg name="moveit_warehouse_database_path" value="$(arg db_path)"/>
