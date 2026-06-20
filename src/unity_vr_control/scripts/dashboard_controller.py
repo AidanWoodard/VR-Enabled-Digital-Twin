@@ -13,7 +13,9 @@ Bag files are stored in ~/dashboard_bags/slot_N.bag
 import os
 import signal
 import subprocess
+import threading
 import rospy
+from std_msgs.msg import Int32
 from unity_vr_control.srv import (
     DashboardRecord,  DashboardRecordResponse,
     DashboardPlayback, DashboardPlaybackResponse,
@@ -27,6 +29,15 @@ RECORD_TOPICS = ["/sgr532/vr_target_pose", "/sgr532/gripper/command"]
 # Active subprocesses keyed by slot index (1-5)
 record_procs = {}
 playback_procs = {}
+
+playback_finished_pub = None
+
+
+def _watch_playback_completion(slot, proc):
+    proc.wait()
+    if playback_procs.get(slot) is proc:
+        playback_finished_pub.publish(Int32(data=slot))
+        rospy.loginfo(f"[Dashboard] Playback finished naturally for slot {slot}")
 
 
 def bag_path(slot_id):
@@ -93,6 +104,7 @@ def handle_playback(req):
         path = bag_path(slot)
         proc = subprocess.Popen(["rosbag", "play", path])
         playback_procs[slot] = proc
+        threading.Thread(target=_watch_playback_completion, args=(slot, proc), daemon=True).start()
         rospy.loginfo(f"[Dashboard] Playback started for slot {slot} ← {path} (pid {proc.pid})")
         return DashboardPlaybackResponse(success=True, message=f"Playback started for slot {slot}")
     else:
@@ -150,8 +162,11 @@ def handle_clear(req):
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
+    global playback_finished_pub
     rospy.init_node("dashboard_controller")
     os.makedirs(BAG_DIR, exist_ok=True)
+
+    playback_finished_pub = rospy.Publisher("/dashboard/playback_finished", Int32, queue_size=10)
 
     rospy.Service("dashboard/record",      DashboardRecord,      handle_record)
     rospy.Service("dashboard/playback",    DashboardPlayback,    handle_playback)

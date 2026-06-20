@@ -48,6 +48,10 @@ Located at `src/unity_vr_control/scripts/`. All scripts use Python 3 (`#!/usr/bi
 
 **`teach_repeat_executor.py`** — Reads `teleop_poses.json` and executes poses in a loop via `MoveGroupCommander`.
 
+**`arm_bag_recorder.py`** — MUX node multiplexing the arm's `FollowJointTrajectory` action server between live VR teleop (`/sgr532/ik_goal_cmd`) and `rosbag`-based playback. Driven by string commands on `/sgr532/bag_control` (`RECORD:N`, `PLAY:N`, `STOP`, `CLEAR:N`); records `/sgr532/joint_states` + `/sgr532/gripper/command` to `~/ROS_Files/sagittarius_ws/recordings/slot_N.bag`. `_cmd_play()` pre-positions the arm to the bag's first joint frame (peeked via a throwaway `rosbag play -r 0`, then driven there and confirmed via polling real `/sgr532/joint_states` within 0.05 rad/5s timeout) **before** starting real-speed playback — this prevents the arm from visibly lurching/chasing the trajectory for the first 1-2s.
+
+**`dashboard_controller.py`** — Separate `dashboard/record`, `dashboard/playback`, `dashboard/query_slots`, `dashboard/clear` services for the Unity dashboard UI. Records `/sgr532/vr_target_pose` + gripper to `~/dashboard_bags/slot_N.bag` (a different directory/topic set than `arm_bag_recorder.py`'s slots — the two systems are not interchangeable). `handle_playback()` has no joint-state tracking or action client, so it does **not** get the pre-positioning fix above; playback can still lurch. Also publishes `/dashboard/playback_finished` (`std_msgs/Int32`, payload = slot index) exactly once when a `rosbag play` subprocess exits **on its own** — a daemon thread per playback calls `proc.wait()` then checks `playback_procs[slot]` is still that same `proc` object before publishing, so manual Stops (which pop the dict first) never trigger it. Lets Unity's `CommandSlotDashboard.cs` reset a slot's UI without polling.
+
 ## ROS Namespace
 
 All arm topics live under `/sgr532/`:
@@ -81,7 +85,3 @@ export ROS_MASTER_URI=http://192.168.1.100:11311
 
 Campus Wi-Fi blocks peer-to-peer TCP (AP isolation) — use the direct Cat6 cable or a dedicated local router.
 
-## Todo?
-
-- `unity_vr_control/CMakeLists.txt` has `add_service_files()`/`generate_messages()` commented out, and `catkin_install_python(PROGRAMS ...)` is missing `dashboard_controller.py` (only `unity_vr_goal_listener.py`, `light_ik_solver.py`, and `arm_bag_recorder.py` are listed). The 4 `Dashboard*.srv` files in `srv/` are never declared for message generation, and `dashboard_controller.py` isn't installed as an executable — this likely needs fixing for the dashboard's services to build/run correctly.
-- On startup, consider spawning a Haiku subagent to research this CMakeLists.txt gap (check current `catkin_install_python` contents and whether `add_service_files`/`generate_messages` are still commented out) before relying on the dashboard controller's services.
