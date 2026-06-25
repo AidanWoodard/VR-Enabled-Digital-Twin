@@ -34,6 +34,23 @@ These shell aliases are defined in `~/.bashrc` and source `devel/setup.bash` aut
 
 The arm serial port must first be shared from Windows PowerShell via `usbipd attach -w -b <port>`.
 
+## Node Graph (`full_system.launch`)
+
+Running `src/unity_vr_control/launch/full_system.launch` brings up 8 nodes (joint_state_publisher_gui and rviz are disabled by default and don't count):
+
+| Node | Source | Role |
+|---|---|---|
+| `robot_state_publisher` | `sagittarius_descriptions/description.launch` | URDF + joint angles → TF tree |
+| `joint_state_publisher` | `sgr532_moveit_in_spark.launch` | aggregates joint topic (real data overrides via hardware driver) |
+| `sdk_sagittarius_arm` | `sdk_sagittarius_arm/launch/sdk_sagittarius_arm.launch` | C++ vendor driver; serial link to hardware, publishes real `/sgr532/joint_states`, executes servo commands |
+| `move_group` | `sagittarius_moveit/launch/move_group.launch` | MoveIt planning node; exposes `/sgr532/compute_ik` and the `FollowJointTrajectory` action server |
+| `unity_endpoint` | `ROS-TCP-Endpoint/launch/endpoint.launch` (`default_server_endpoint.py`) | generic TCP socket server on port 10000; binary-serializes/relays arbitrary ROS topics/services to/from Unity's `ROSConnection` client. No Sagittarius-specific logic. |
+| `light_ik_solver` | `unity_vr_control/launch/unity_vr_control.launch` | subscribes `/sgr532/vr_target_pose`, calls `/sgr532/compute_ik` directly, publishes resulting goal to `/sgr532/ik_goal_cmd` (does not own an action client itself) |
+| `arm_bag_recorder` | `unity_vr_control/launch/unity_vr_control.launch` | MUX: owns the actual `FollowJointTrajectory` action client, arbitrates between `light_ik_solver`'s live goals and rosbag playback, pre-positions arm before real-speed playback |
+| `dashboard_controller` | `unity_vr_control/launch/unity_vr_control.launch` | separate record/playback services for Unity's dashboard UI; own slot set in `~/dashboard_bags/`, no pre-positioning |
+
+`usb_cam.launch` is launched separately (via `camlaunch`) and is not part of `full_system.launch`; it starts 2 nodes (`cam1`, `cam2`).
+
 ## Key Custom Package: `unity_vr_control`
 
 Located at `src/unity_vr_control/scripts/`. All scripts use Python 3 (`#!/usr/bin/env python3`).
