@@ -49,7 +49,7 @@ Running `src/unity_vr_control/launch/full_system.launch` brings up 8 nodes (join
 | `arm_bag_recorder` | `unity_vr_control/launch/unity_vr_control.launch` | MUX: owns the actual `FollowJointTrajectory` action client, arbitrates between `light_ik_solver`'s live goals and rosbag playback, pre-positions arm before real-speed playback |
 | `dashboard_controller` | `unity_vr_control/launch/unity_vr_control.launch` | separate record/playback services for Unity's dashboard UI; own slot set in `~/dashboard_bags/`, no pre-positioning |
 
-`usb_cam.launch` is launched separately (via `camlaunch`) and is not part of `full_system.launch`; it starts 2 nodes (`cam1`, `cam2`).
+`usb_cam.launch` is launched separately (via `camlaunch`) and is not part of `full_system.launch`; it starts 4 nodes: `cam1/usb_cam`, `cam1/image_republisher`, `cam2/usb_cam`, `cam2/image_republisher`.
 
 ## Key Custom Package: `unity_vr_control`
 
@@ -80,7 +80,7 @@ All arm topics live under `/sgr532/`:
 
 ## Dual Webcam Setup
 
-Webcams use `/dev/video0` and `/dev/video2` (skipping index 1) — cam2 has a mandatory 4-second staggered launch delay to prevent kernel race conditions when two identical `VID:PID 0c45:636b` devices initialize simultaneously. Targets 1280×960 at 30fps via `usb_cam` nodes in namespaces `cam1/` and `cam2/`.
+Webcams use `/dev/video0` and `/dev/video2` (skipping index 1) — cam2 has a mandatory 4-second staggered launch delay to prevent kernel race conditions when two identical `VID:PID 0c45:636b` devices initialize simultaneously. Configured for 640×480 at 30fps, `pixel_format: mjpeg`. Each camera group also runs an `image_transport/republish` node (JPEG quality 80) that publishes `sensor_msgs/CompressedImage` on `/cam1/usb_cam/image_raw/compressed` and `/cam2/usb_cam/image_raw/compressed` — these are the topics Unity subscribes to over ROS-TCP-Endpoint.
 
 **WSL fallback:** If `usbipd` cannot attach the cameras, run `src/sagittarius_perception/sagittarius_object_color_detector/scripts/cam_bridge.py` on the **Windows host** (not in WSL) — it streams both webcam frames over a socket on `127.0.0.1:8484`, and the WSL receiver picks them up via `nodes/cam_bridge_receiver.py`.
 
