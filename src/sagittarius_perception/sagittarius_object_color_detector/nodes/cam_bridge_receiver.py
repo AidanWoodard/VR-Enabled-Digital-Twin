@@ -1,77 +1,89 @@
 #!/usr/bin/env python3
 """
-This file is the listener for the publisher script cam_bridge.py in ../scripts/
-It listens for publications of camera data (outside of WSL) and converts it to
-a usable image message format usable by ROS.
+WSL-side receiver for cam_bridge.py (run cam_bridge.py on the Windows host first).
+
+Connects to two independent TCP ports (cam1=8484, cam2=8485), receives
+JPEG frames, and publishes CompressedImage on the same topics that
+usb_cam + image_republisher would publish, so Unity sees no difference.
+
+Published topics:
+  /cam1/usb_cam/image/compressed  (sensor_msgs/CompressedImage)
+  /cam2/usb_cam/image/compressed  (sensor_msgs/CompressedImage)
 """
 
 import rospy
 import socket
 import struct
-import pickle
-import cv2
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge
+import threading
+from sensor_msgs.msg import CompressedImage
 
-def main():
-    rospy.init_node('windows_camera_bridge_receiver', anonymous=True)
-    
-    # Create ROS publishers matching your C# expectations
-    pub1 = rospy.Publisher('/cam1/usb_cam/image_raw', Image, queue_size=10)
-    pub2 = rospy.Publisher('/cam2/usb_cam/image_raw', Image, queue_size=10)
-    
-    bridge = CvBridge()
-    
-    # Connect to the Windows host socket (127.0.0.1 loops back to the main OS)
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        client_socket.connect(('127.0.0.1', 8484))
-    except Exception as e:
-        rospy.logerr(f"Could not connect to Windows bridge: {e}")
-        return
+CAM1_PORT = 8484
+CAM2_PORT = 8485
+HOST      = '127.0.0.1'
+RECONNECT_DELAY_S = 2.0
 
-    data = b""
-    payload_size = struct.calcsize("Q")
-    
-    rospy.loginfo("Connected to Windows Camera Bridge. Publishing frames...")
+
+def _recv_exactly(sock: socket.socket, n: int) -> bytes:
+    buf = b''
+    while len(buf) < n:
+        chunk = sock.recv(n - len(buf))
+        if not chunk:
+            raise ConnectionError("socket closed")
+        buf += chunk
+    return buf
+
+
+def receive_camera(port: int, topic: str, name: str) -> None:
+    pub = rospy.Publisher(topic, CompressedImage, queue_size=2)
 
     while not rospy.is_shutdown():
-        # Keep receiving data until we have the full frame size header
-        while len(data) < payload_size:
-            packet = client_socket.recv(4096)
-            if not packet: break
-            data += packet
-        if not data: break
-        
-        packed_msg_size = data[:payload_size]
-        data = data[payload_size:]
-        msg_size = struct.unpack("Q", packed_msg_size)[0]
-        
-        # Keep receiving until the entire twin-frame payload is delivered
-        while len(data) < msg_size:
-            data += client_socket.recv(4096)
-            
-        frame_data = data[:msg_size]
-        data = data[msg_size:]
-        
-        # Unpack the frames back into OpenCV images
-        frame1, frame2 = pickle.loads(frame_data)
-        
-        # Convert OpenCV matrices to native ROS Image messages
-        ros_img1 = bridge.cv2_to_imgmsg(frame1, encoding="bgr8")
-        ros_img2 = bridge.cv2_to_imgmsg(frame2, encoding="bgr8")
-        
-        # Add timestamps and frame IDs
-        ros_img1.header.stamp = rospy.Time.now()
-        ros_img1.header.frame_id = "cam1_link"
-        ros_img2.header.stamp = rospy.Time.now()
-        ros_img2.header.frame_id = "cam2_link"
-        
-        # Publish to the ROS graph
-        pub1.publish(ros_img1)
-        pub2.publish(ros_img2)
+        try:
+            rospy.loginfo(f"[{name}] Connecting to Windows bridge on port {port}...")
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((HOST, port))
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            rospy.loginfo(f"[{name}] Connected — receiving frames.")
 
-    client_socket.close()
+            while not rospy.is_shutdown():
+                header = _recv_exactly(sock, 4)
+                size   = struct.unpack('!I', header)[0]
+                data   = _recv_exactly(sock, size)
+
+                msg = CompressedImage()
+                msg.header.stamp    = rospy.Time.now()
+                msg.header.frame_id = name + "_link"
+                msg.format          = "jpeg"
+                msg.data            = data
+                pub.publish(msg)
+
+        except (ConnectionError, ConnectionRefusedError, OSError) as e:
+            rospy.logwarn(f"[{name}] Connection lost ({e}). "
+                          f"Retrying in {RECONNECT_DELAY_S}s...")
+            rospy.sleep(RECONNECT_DELAY_S)
+        finally:
+            try:
+                sock.close()
+            except Exception:
+                pass
+
+
+def main() -> None:
+    rospy.init_node('cam_bridge_receiver', anonymous=False)
+
+    t1 = threading.Thread(
+        target=receive_camera,
+        args=(CAM1_PORT, '/cam1/usb_cam/image/compressed', 'cam1'),
+        daemon=True,
+    )
+    t2 = threading.Thread(
+        target=receive_camera,
+        args=(CAM2_PORT, '/cam2/usb_cam/image/compressed', 'cam2'),
+        daemon=True,
+    )
+    t1.start()
+    t2.start()
+    rospy.spin()
+
 
 if __name__ == '__main__':
     try:

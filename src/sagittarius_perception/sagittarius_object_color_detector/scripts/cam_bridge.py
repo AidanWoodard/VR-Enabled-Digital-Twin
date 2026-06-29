@@ -1,46 +1,87 @@
 """
-To handle issues with multi-usb camera/webcam setups, which WSL struggles with,
-this publisher script will instead setup 2 webcams with a openCV local network
-connection. This will bypass the need for 'usbipd bind ...' commands in PShell.
+Run on the Windows host (NOT in WSL) to stream both webcams to WSL at 30fps.
 
-DO NOT RUN IN WSL. You will get access errors, run on native machine.
+Each camera runs on its own thread and its own TCP port so they are fully
+independent — a slow frame on one camera never blocks the other.
+
+Ports:
+  8484 — cam1 (OpenCV index 0)
+  8485 — cam2 (OpenCV index 1)
+
+Usage (Windows PowerShell or CMD):
+  python cam_bridge.py
+
+Then in WSL: rosrun sagittarius_object_color_detector cam_bridge_receiver.py
 """
 
 import cv2
 import socket
 import struct
-import pickle
+import threading
 
-print("Beginning connection script for 2 Webcams...")
+CAM1_INDEX = 0
+CAM2_INDEX = 1
+CAM1_PORT  = 8484
+CAM2_PORT  = 8485
+WIDTH  = 640
+HEIGHT = 480
+FPS    = 30
+JPEG_QUALITY = 80
 
-# Initialize both cameras natively in Windows
-cam1 = cv2.VideoCapture(0)  # Maps to Bus 2-4
-cam2 = cv2.VideoCapture(1)  # Maps to Bus 3-4
 
-# Set resolutions matching your ROS launch targets
-for cam in [cam1, cam2]:
-    cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    cam.set(cv2.CAP_PROP_FPS, 15)
+def stream_camera(cam_index: int, port: int, name: str) -> None:
+    cap = cv2.VideoCapture(cam_index, cv2.CAP_DSHOW)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, HEIGHT)
+    cap.set(cv2.CAP_PROP_FPS,          FPS)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'))
 
-# Setup network socket to talk to WSL (localhost)
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind(('127.0.0.1', 8484))
-server_socket.listen(2)
+    if not cap.isOpened():
+        print(f"[{name}] ERROR: could not open camera index {cam_index}")
+        return
 
-print("Windows Camera Bridge Listening on port 8484... Start your ROS nodes now.")
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(f"[{name}] Opened at {int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))}x"
+          f"{int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))} @ {actual_fps:.0f} fps")
 
-while True:
-    conn, addr = server_socket.accept()
-    try:
-        while True:
-            ret1, frame1 = cam1.read()
-            ret2, frame2 = cam2.read()
-            
-            if ret1 and ret2:
-                # Package both frames together
-                data = pickle.dumps((frame1, frame2))
-                message = struct.pack("Q", len(data)) + data
-                conn.sendall(message)
-    except Exception as e:
-        conn.close()
+    srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    srv.bind(('127.0.0.1', port))
+    srv.listen(1)
+    print(f"[{name}] Listening on port {port} — start cam_bridge_receiver.py in WSL now.")
+
+    while True:
+        conn, addr = srv.accept()
+        conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        print(f"[{name}] WSL receiver connected from {addr}")
+        try:
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    print(f"[{name}] WARNING: frame read failed, retrying")
+                    continue
+
+                ok, buf = cv2.imencode('.jpg', frame,
+                                       [cv2.IMWRITE_JPEG_QUALITY, JPEG_QUALITY])
+                if not ok:
+                    continue
+
+                payload = buf.tobytes()
+                # 4-byte big-endian length header then JPEG bytes
+                conn.sendall(struct.pack('!I', len(payload)) + payload)
+        except (BrokenPipeError, ConnectionResetError):
+            print(f"[{name}] WSL receiver disconnected, waiting for reconnect...")
+        finally:
+            conn.close()
+
+
+if __name__ == '__main__':
+    print("Windows Camera Bridge starting...")
+    t1 = threading.Thread(target=stream_camera,
+                          args=(CAM1_INDEX, CAM1_PORT, 'cam1'), daemon=True)
+    t2 = threading.Thread(target=stream_camera,
+                          args=(CAM2_INDEX, CAM2_PORT, 'cam2'), daemon=True)
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
