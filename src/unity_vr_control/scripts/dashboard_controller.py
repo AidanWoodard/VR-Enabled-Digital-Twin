@@ -46,7 +46,20 @@ def bag_path(slot_id):
 
 def slot_has_data(slot_id):
     path = bag_path(slot_id)
-    return os.path.isfile(path) and os.path.getsize(path) > 0
+    active_path = path + ".active"
+    return (os.path.isfile(path) and os.path.getsize(path) > 0) or \
+           (os.path.isfile(active_path) and os.path.getsize(active_path) > 0)
+
+
+def _get_playable_path(slot_id):
+    """Return whichever of .bag or .bag.active actually has data."""
+    path = bag_path(slot_id)
+    if os.path.isfile(path) and os.path.getsize(path) > 0:
+        return path
+    active_path = path + ".active"
+    if os.path.isfile(active_path) and os.path.getsize(active_path) > 0:
+        return active_path
+    return path
 
 
 # ── Record service ─────────────────────────────────────────────────────────────
@@ -98,10 +111,13 @@ def handle_playback(req):
         if not slot_has_data(slot):
             return DashboardPlaybackResponse(success=False, message=f"Slot {slot} has no recording")
 
+        if slot in record_procs and record_procs[slot].poll() is None:
+            return DashboardPlaybackResponse(success=False, message=f"Slot {slot} is still recording — stop recording first")
+
         if slot in playback_procs and playback_procs[slot].poll() is None:
             return DashboardPlaybackResponse(success=False, message=f"Slot {slot} already playing")
 
-        path = bag_path(slot)
+        path = _get_playable_path(slot)
         proc = subprocess.Popen(["rosbag", "play", path])
         playback_procs[slot] = proc
         threading.Thread(target=_watch_playback_completion, args=(slot, proc), daemon=True).start()
@@ -147,7 +163,10 @@ def handle_clear(req):
             except subprocess.TimeoutExpired: proc.kill()
 
     path = bag_path(slot)
+    active_path = path + ".active"
     try:
+        if os.path.exists(active_path):
+            os.remove(active_path)
         # Zero out the file (truncate to 0 bytes), preserving the path so
         # slot_has_data() returns False on next QuerySlots call.
         with open(path, 'wb'):
@@ -159,12 +178,24 @@ def handle_clear(req):
         return DashboardClearResponse(success=False, message=str(e))
 
 
+def _shutdown_handler():
+    for slot, proc in list(record_procs.items()):
+        if proc.poll() is None:
+            rospy.logwarn(f"[Dashboard] Shutdown: finalizing recording for slot {slot}")
+            proc.send_signal(signal.SIGINT)
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
     global playback_finished_pub
     rospy.init_node("dashboard_controller")
     os.makedirs(BAG_DIR, exist_ok=True)
+    rospy.on_shutdown(_shutdown_handler)
 
     playback_finished_pub = rospy.Publisher("/dashboard/playback_finished", Int32, queue_size=10)
 
