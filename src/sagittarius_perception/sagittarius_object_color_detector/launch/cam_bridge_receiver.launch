@@ -1,0 +1,6 @@
+<launch>
+  <node name="cam_bridge_receiver"
+        pkg="sagittarius_object_color_detector"
+        type="cam_bridge_receiver.py"
+        output="screen" />
+</launch>

@@ -5,7 +5,10 @@
   <arg name="pixel_form2" default="mjpeg" />
 
   <group ns="cam1">
-    <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen" >
+    <!-- Run the node in background, then re-apply exposure_dynamic_framerate=0 after it
+         has opened the device (usb_cam_node resets the control to 1 on open). -->
+    <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen"
+          launch-prefix="bash -c '$0 $@ &amp; BGPID=$!; sleep 3; v4l2-ctl -d $(arg video_dev1) -c exposure_dynamic_framerate=0 2>/dev/null; wait $BGPID'" >
       <param name="video_device" value="$(arg video_dev1)" />
       <param name="image_width" value="640" />
       <param name="image_height" value="480" />
@@ -26,7 +29,7 @@
          This prevents the driver from inheriting a stale negotiated framerate
          left behind by a prior process, which causes ~15 fps instead of 30. -->
     <node name="usb_cam" pkg="usb_cam" type="usb_cam_node" output="screen"
-          launch-prefix="bash -c 'until [ -e /dev/v4l/by-path/platform-vhci_hcd.0-usb-0:2:1.0-video-index0 ]; do sleep 0.2; done; sleep 2; v4l2-ctl -d /dev/v4l/by-path/platform-vhci_hcd.0-usb-0:3:1.0-video-index0 --set-fmt-video=width=640,height=480,pixelformat=MJPG --set-parm=30 2>/dev/null; $0 $@'" >
+          launch-prefix="bash -c 'until [ -e $(arg video_dev1) ]; do sleep 0.2; done; sleep 2; $0 $@ &amp; BGPID=$!; sleep 3; v4l2-ctl -d $(arg video_dev2) -c exposure_dynamic_framerate=0 2>/dev/null; wait $BGPID'" >
       <param name="video_device" value="$(arg video_dev2)" />
       <param name="image_width" value="640" />
       <param name="image_height" value="480" />

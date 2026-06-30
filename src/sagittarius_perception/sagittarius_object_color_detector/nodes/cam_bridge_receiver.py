@@ -14,13 +14,28 @@ Published topics:
 import rospy
 import socket
 import struct
+import subprocess
 import threading
 from sensor_msgs.msg import CompressedImage
 
 CAM1_PORT = 8484
 CAM2_PORT = 8485
-HOST      = '127.0.0.1'
 RECONNECT_DELAY_S = 2.0
+
+
+def _windows_host_ip() -> str:
+    """Return Windows host IP reachable from WSL2 (default gateway in NAT mode)."""
+    try:
+        out = subprocess.check_output(['ip', 'route'], text=True)
+        for line in out.splitlines():
+            if line.startswith('default via'):
+                return line.split()[2]
+    except Exception:
+        pass
+    return '127.0.0.1'
+
+
+HOST = _windows_host_ip()
 
 
 def _recv_exactly(sock: socket.socket, n: int) -> bytes:
@@ -69,6 +84,7 @@ def receive_camera(port: int, topic: str, name: str) -> None:
 
 def main() -> None:
     rospy.init_node('cam_bridge_receiver', anonymous=False)
+    rospy.loginfo(f"[cam_bridge_receiver] Windows host IP: {HOST}")
 
     t1 = threading.Thread(
         target=receive_camera,
