@@ -13,6 +13,28 @@ Nothing here has been fixed yet unless marked otherwise.
 > longer exists). Items are marked ✅ FIXED / ♻️ OBSOLETE inline; unmarked items are
 > still open.
 
+> **Update 2026-07-15 (second pass, after first live hardware test):** playback moved
+> nothing in either mode. Two additional root causes found and FIXED in
+> `arm_bag_recorder.py`:
+>
+> 1. **Single-point goals silently dropped by the vendor driver.**
+>    `sdk_sagittarius_arm_real.cpp` rejects any `FollowJointTrajectory` goal with
+>    `points.size() < 2` — via `setSucceeded(INVALID_GOAL)`, so no error surfaces.
+>    Every MUX-built goal (`_move_to_and_wait`, `_playback_js_callback`,
+>    `_playback_ee_callback`) was single-point. Fixed with `_make_goal()`: all goals
+>    are now `[current joints @ t=0, target @ t=duration]`, mirroring
+>    `light_ik_solver.py`.
+> 2. **Joints-mode peek starved 100% of the time.** `_control_callback` holds
+>    `_state_lock` through the peek's `wait_for_message(PLAYBACK_JS_TOPIC)`, while
+>    `_playback_js_callback` (same topic, registered first, needs that lock) blocks
+>    rospy's sequential per-topic callback dispatch — so the peek always timed out
+>    and pre-positioning was always skipped. Fixed by peeking on a dedicated
+>    `PEEK_JS_TOPIC` (mirroring `PEEK_EE_TOPIC`).
+>
+> Also: peek subprocesses are now stopped with SIGINT instead of `terminate()`, so
+> `rosbag play` unregisters from the master instead of leaving zombie `/play_*`
+> node registrations.
+
 ---
 
 ## TL;DR — why "nothing is saved" — ✅ FIXED 2026-07-15
