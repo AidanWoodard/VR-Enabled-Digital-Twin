@@ -1,0 +1,12 @@
+<launch>
+  <!-- End-effector playback variant: identical bring-up to full_system.launch,
+       but PLAY:N replays the recorded /sgr532/vr_target_pose through
+       /sgr532/compute_ik instead of raw joint_states. For joints-vs-EE
+       playback accuracy comparison. -->
+  <arg name="serialname" default="/dev/ttyACM0" />
+
+  <include file="$(find unity_vr_control)/launch/full_system.launch">
+    <arg name="serialname" value="$(arg serialname)" />
+    <arg name="playback_mode" value="ee" />
+  </include>
+</launch>

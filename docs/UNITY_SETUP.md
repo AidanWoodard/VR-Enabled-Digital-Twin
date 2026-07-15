@@ -37,7 +37,7 @@ There's only one scene in the project: `Assets/Scenes/SampleScene.unity`. Open i
 
 ## 5. Connecting to ROS
 
-The ROS connection is **not** a scene GameObject — it's the `ROSConnection` singleton, auto-instantiated at runtime from `Assets/Resources/ROSConnectionPrefab.prefab` the first time any script calls `ROSConnection.GetOrCreateInstance()`.
+The ROS connection is the `ROSConnection` singleton. `SampleScene.unity` currently contains **two** ROSConnection GameObjects — `ROS Connection` (active) and `ROS Connection Ethernet` (inactive, a leftover from the two-machine setup) — plus the fallback `Assets/Resources/ROSConnectionPrefab.prefab` that `ROSConnection.GetOrCreateInstance()` instantiates only if no scene instance exists. The inactive duplicate should ideally be deleted: duplicate ROSConnection instances are a known way for `Subscribe()`/`RegisterPublisher()` calls to land on an instance that never connects (see §8).
 
 That prefab defaults to `127.0.0.1:10000` (localhost). **This is the #1 reason teleop won't connect for a new setup** — you need to either:
 - edit the prefab's Inspector fields (`m_RosIPAddress`, `m_RosPort`) directly, or
@@ -53,7 +53,31 @@ The ROS TCP endpoint (`roslaunch ros_tcp_endpoint endpoint.launch`) needs to alr
 - `Presentations and Documentation/` (project root, sibling of `Assets/`) — has the REU poster and a few architecture screenshots (`ros_unity_bridge1-3.png`, `robotinunity1.png`) that are useful as a visual sanity check of what a working bridge looks like.
 - Root `CLAUDE.md` — the fuller technical reference for ongoing development (controls, calibration flow, dashboard record/playback system, coordinate conventions, etc.) once you're past first-time setup.
 
-## 7. Quick controls reference
+## 7. Troubleshooting: "TCP is connected but no data flows either way"
+
+Debugged 2026-07-14 on the single-machine setup (Unity on Windows, ROS in WSL2, connector → `127.0.0.1:10000`). Symptom: endpoint logs `Connection from 127.0.0.1`, Unity HUD shows connected, `ss` shows an ESTABLISHED connection — but the arm never moves and Unity never receives joint states or camera frames.
+
+**Conclusion: this is a Unity-side issue.** The entire ROS/WSL/mirrored-networking path was proven healthy:
+
+- `rosnode info /unity_endpoint` showed **zero topic registrations** — Unity's `__subscribe`/`__publish` syscommands never arrived.
+- A fake connector client (`src/unity_vr_control/scripts/debug_fake_unity_client.py`) subscribed and streamed joint states instantly, **both** from inside WSL and from the Windows host over the exact `127.0.0.1:10000` path Unity uses. The WSL2 mirrored-networking boundary passes payload fine.
+- `ss -ti 'sport = :10000'` byte counters showed Unity's connection sending ~8 bytes/s — keepalives only. Unity's sender thread was alive but **never sent a single registration**, so both directions die: ROS→Unity also requires Unity to first register its subscribers.
+
+How to re-run this diagnosis (each step isolates one layer):
+
+1. `rosnode info /unity_endpoint` — registrations present? If yes, the problem is elsewhere.
+2. `python3 src/unity_vr_control/scripts/debug_fake_unity_client.py` in WSL — endpoint/ROS healthy?
+3. Copy the same script to Windows and run it there — mirrored-networking boundary healthy?
+4. `ss -ti 'sport = :10000'` twice a few seconds apart — is Unity sending anything beyond ~8 B/s keepalives?
+
+If 1 shows nothing and 2–4 pass, stop touching WSL/ROS — the fix is in the Unity project. Unity-side suspects to check (all observed in the Editor log during this session):
+
+- **Duplicate ROSConnection instances** in the scene (see §5) — `Subscribe()` calls can bind to a non-connected instance.
+- **`[ROSPublishToggle]` / `[RobotBarrier]`** scripts gate publishing (see §8 controls) — but note these only block *publishing*, they don't explain missing *subscriber* registrations.
+- **OpenXR failing to initialize** (`xrCreateInstance failed` in `%LOCALAPPDATA%\Unity\Editor\Editor.log`) — SteamVR not running/active runtime wrong; VR scripts may bail before registering anything.
+- Unity's `Editor.log` is readable from WSL at `/mnt/c/Users/<user>/AppData/Local/Unity/Editor/Editor.log` — check whether `CameraSubscriber`/`JointStateSubscriber` `Start()` actually ran and whether any C# exception preceded the silence.
+
+## 8. Quick controls reference
 
 - **Calibration:** the controller's pose 10 seconds after Play is captured as the home reference frame — hold still during this window.
 - **Toggle live publishing:** hold both triggers together for ~1 second.

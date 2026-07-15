@@ -27,7 +27,7 @@ stats-cache.json
 .claude/plans/
 .claude/tasks/
 .claude/worktrees/
-ref/CONTEXT_bashrc.md
+.claude/E*/*todo*.md
 
 # --- Python build artifacts ---
 __pycache__/
