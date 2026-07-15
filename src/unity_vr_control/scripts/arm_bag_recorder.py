@@ -21,9 +21,14 @@ JOINT_NAMES = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
 PLAYBACK_RATE_HZ = 10
 PLAYBACK_JS_TOPIC = "/sgr532/playback/joint_states"
 PLAYBACK_EE_TOPIC = "/sgr532/playback/ee_pose"
-# Peek uses its own topic so the burst of poses it replays can never queue up
-# on the persistent PLAYBACK_EE_TOPIC subscriber and drain into playback later.
+# Peeks use their own topics so peeked messages never reach the persistent
+# playback subscribers. For joint_states this is load-bearing, not hygiene:
+# _control_callback holds _state_lock during the peek, _playback_js_callback
+# needs that lock, and rospy dispatches a topic's callbacks sequentially — so
+# a peek waiting on PLAYBACK_JS_TOPIC would be starved by its own sibling
+# callback and always time out.
 PEEK_EE_TOPIC = "/sgr532/playback/ee_peek"
+PEEK_JS_TOPIC = "/sgr532/playback/js_peek"
 # Dead-end topics: recorded topics a given playback mode must not deliver to
 # their live consumers get remapped here (nothing subscribes to these).
 VOID_JS_TOPIC = "/sgr532/playback/void_js"
@@ -161,14 +166,14 @@ class ArmBagRecorder:
         # gripper command would twitch the gripper hardware.
         proc = subprocess.Popen(
             ["rosbag", "play", "-r", "0", bag_path,
-             f"/sgr532/joint_states:={PLAYBACK_JS_TOPIC}",
+             f"/sgr532/joint_states:={PEEK_JS_TOPIC}",
              f"/sgr532/vr_target_pose:={VOID_POSE_TOPIC}",
              f"/sgr532/gripper/command:={VOID_GRIP_TOPIC}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
         try:
-            msg = rospy.wait_for_message(PLAYBACK_JS_TOPIC, JointState, timeout=3.0)
+            msg = rospy.wait_for_message(PEEK_JS_TOPIC, JointState, timeout=3.0)
             name_to_pos = dict(zip(msg.name, msg.position))
             positions = [name_to_pos.get(j, 0.0) for j in JOINT_NAMES]
         except rospy.ROSException:
@@ -176,7 +181,9 @@ class ArmBagRecorder:
             positions = None
         finally:
             if proc.poll() is None:
-                proc.terminate()
+                # SIGINT (not terminate): lets rosbag play unregister from the
+                # master instead of leaving a zombie /play_* node registration.
+                proc.send_signal(signal.SIGINT)
                 try:
                     proc.wait(timeout=2.0)
                 except subprocess.TimeoutExpired:
@@ -232,25 +239,45 @@ class ArmBagRecorder:
             pose = None
         finally:
             if proc.poll() is None:
-                proc.terminate()
+                # SIGINT (not terminate): lets rosbag play unregister from the
+                # master instead of leaving a zombie /play_* node registration.
+                proc.send_signal(signal.SIGINT)
                 try:
                     proc.wait(timeout=2.0)
                 except subprocess.TimeoutExpired:
                     proc.kill()
         return pose
 
-    def _move_to_and_wait(self, positions, tolerance=0.05, timeout=5.0):
+    def _make_goal(self, target_positions, duration):
+        # The sdk driver rejects any trajectory with fewer than 2 points
+        # (sdk_sagittarius_arm_real.cpp, setSucceeded(INVALID_GOAL) — silent!),
+        # so every goal must be [current joints @ t=0, target @ t=duration],
+        # the same shape light_ik_solver sends.
         goal = FollowJointTrajectoryGoal()
         goal.trajectory.joint_names = JOINT_NAMES
-        goal.trajectory.header.stamp = rospy.Time.now()
 
-        pt = JointTrajectoryPoint()
-        pt.positions = positions
-        pt.velocities = [0.0] * len(JOINT_NAMES)
-        pt.time_from_start = rospy.Duration(2.0)
-        goal.trajectory.points.append(pt)
+        start = JointTrajectoryPoint()
+        js = self._latest_real_js
+        if js is not None:
+            name_to_pos = dict(zip(js.name, js.position))
+            start.positions = [name_to_pos.get(j, 0.0) for j in JOINT_NAMES]
+        else:
+            # No encoder feedback yet — duplicate the target so the driver
+            # still gets its 2 points (equivalent to a direct jump command).
+            start.positions = list(target_positions)
+        start.velocities = [0.0] * len(JOINT_NAMES)
+        start.time_from_start = rospy.Duration(0.0)
+        goal.trajectory.points.append(start)
 
-        self._arm_client.send_goal(goal)
+        end = JointTrajectoryPoint()
+        end.positions = list(target_positions)
+        end.velocities = [0.0] * len(JOINT_NAMES)
+        end.time_from_start = rospy.Duration(duration)
+        goal.trajectory.points.append(end)
+        return goal
+
+    def _move_to_and_wait(self, positions, tolerance=0.05, timeout=5.0):
+        self._arm_client.send_goal(self._make_goal(positions, 2.0))
 
         rate = rospy.Rate(20)
         deadline = rospy.Time.now() + rospy.Duration(timeout)
@@ -420,17 +447,8 @@ class ArmBagRecorder:
         name_to_pos = dict(zip(msg.name, msg.position))
         positions = [name_to_pos.get(j, 0.0) for j in JOINT_NAMES]
 
-        goal = FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = JOINT_NAMES
-        goal.trajectory.header.stamp = rospy.Time.now()
-
-        pt = JointTrajectoryPoint()
-        pt.positions = positions
-        pt.velocities = [0.0] * len(JOINT_NAMES)
-        pt.time_from_start = rospy.Duration(1.0 / PLAYBACK_RATE_HZ)
-        goal.trajectory.points.append(pt)
-
-        self._arm_client.send_goal(goal)
+        self._arm_client.send_goal(
+            self._make_goal(positions, 1.0 / PLAYBACK_RATE_HZ))
 
     def _playback_ee_callback(self, msg):
         with self._state_lock:
@@ -453,17 +471,9 @@ class ArmBagRecorder:
         if positions is None:
             return  # dropped; _solve_ik already logged (throttled)
 
-        goal = FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = JOINT_NAMES
-        goal.trajectory.header.stamp = rospy.Time.now()
-
-        pt = JointTrajectoryPoint()
-        pt.positions = positions
-        pt.velocities = [0.0] * len(JOINT_NAMES)
         # Fixed timing for parity with joints playback: the command source is
         # the only variable in the joints-vs-EE accuracy comparison.
-        pt.time_from_start = rospy.Duration(1.0 / PLAYBACK_RATE_HZ)
-        goal.trajectory.points.append(pt)
+        goal = self._make_goal(positions, 1.0 / PLAYBACK_RATE_HZ)
 
         # Re-check under the lock: the blocking compute_ik call above leaves a
         # window where STOP may have cancelled all goals — never send after it.
