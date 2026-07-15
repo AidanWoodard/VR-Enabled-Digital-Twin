@@ -2,6 +2,7 @@
 
 import math
 import os
+import signal
 import subprocess
 import threading
 
@@ -82,6 +83,8 @@ class ArmBagRecorder:
 
         rospy.Timer(rospy.Duration(1.0 / PLAYBACK_RATE_HZ), self._playback_timer_cb)
 
+        rospy.on_shutdown(self._shutdown_handler)
+
         self._publish_status()
         rospy.loginfo("[BagRecorder] Ready. State: IDLE")
 
@@ -118,20 +121,49 @@ class ArmBagRecorder:
         return None
 
     def _stop_subprocess(self):
+        # SIGINT, never SIGTERM: rosbag record only writes its index and renames
+        # .bag.active → .bag on a clean SIGINT. A SIGTERM leaves the recording
+        # unfinalized and invisible to playback.
         if self._proc and self._proc.poll() is None:
-            self._proc.terminate()
+            self._proc.send_signal(signal.SIGINT)
             try:
-                self._proc.wait(timeout=2.0)
+                self._proc.wait(timeout=10.0)
             except subprocess.TimeoutExpired:
+                rospy.logwarn(
+                    "[BagRecorder] rosbag ignored SIGINT for 10 s; killing "
+                    "(a recording may be left as .bag.active — rosbag reindex can recover it)."
+                )
                 self._proc.kill()
         self._proc = None
+
+    def _shutdown_handler(self):
+        # Finalize any child rosbag before this node dies — otherwise Ctrl+C on
+        # roslaunch mid-record orphans the recorder (bag stuck as .bag.active)
+        # and an orphaned rosbag play keeps driving the arm.
+        self._stop_subprocess()
+
+    def _playable_path(self, n):
+        """Slot's finalized .bag, or a crash-orphaned .bag.active as fallback."""
+        path = self._slot_path(n)
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
+            return path
+        active = path + ".active"
+        if os.path.isfile(active) and os.path.getsize(active) > 0:
+            return active
+        return None
 
     def _peek_initial_positions(self, bag_path):
         # rosbag play -r 0 still publishes the first frame (t=0) but never
         # advances bag time, so it effectively latches just that one message.
+        # Every other recorded topic is voided so nothing leaks to a live
+        # consumer during the peek: a t=0 vr_target_pose would otherwise reach
+        # light_ik_solver (one stray IK goal while we're still IDLE), and a t=0
+        # gripper command would twitch the gripper hardware.
         proc = subprocess.Popen(
             ["rosbag", "play", "-r", "0", bag_path,
-             f"/sgr532/joint_states:={PLAYBACK_JS_TOPIC}"],
+             f"/sgr532/joint_states:={PLAYBACK_JS_TOPIC}",
+             f"/sgr532/vr_target_pose:={VOID_POSE_TOPIC}",
+             f"/sgr532/gripper/command:={VOID_GRIP_TOPIC}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -257,8 +289,9 @@ class ArmBagRecorder:
     def _cmd_record(self, slot):
         self._cmd_stop()
         bag_path = self._slot_path(slot)
-        if os.path.exists(bag_path):
-            os.remove(bag_path)
+        for stale in (bag_path, bag_path + ".active"):
+            if os.path.exists(stale):
+                os.remove(stale)
         self._proc = subprocess.Popen(
             ["rosbag", "record", "-O", self._slot_prefix(slot),
              "/sgr532/joint_states", "/sgr532/gripper/command",
@@ -272,9 +305,9 @@ class ArmBagRecorder:
         rospy.loginfo(f"[BagRecorder] Recording slot {slot}  (PID {self._proc.pid})")
 
     def _cmd_play(self, slot):
-        bag_path = self._slot_path(slot)
-        if not os.path.exists(bag_path):
-            rospy.logwarn(f"[BagRecorder] Slot {slot} bag not found: {bag_path}")
+        bag_path = self._playable_path(slot)
+        if bag_path is None:
+            rospy.logwarn(f"[BagRecorder] Slot {slot} has no bag: {self._slot_path(slot)}")
             return
         self._cmd_stop()
 
@@ -358,8 +391,12 @@ class ArmBagRecorder:
             rospy.logwarn("[BagRecorder] Send STOP before CLEAR.")
             return
         bag_path = self._slot_path(slot)
-        if os.path.exists(bag_path):
-            os.remove(bag_path)
+        removed = False
+        for p in (bag_path, bag_path + ".active"):
+            if os.path.exists(p):
+                os.remove(p)
+                removed = True
+        if removed:
             rospy.loginfo(f"[BagRecorder] Cleared slot {slot}")
         else:
             rospy.loginfo(f"[BagRecorder] Slot {slot} already empty.")

@@ -6,9 +6,20 @@
 with `light_ik_solver.py`. Compiled from a full code audit + git-history trace.
 Nothing here has been fixed yet unless marked otherwise.
 
+> **Update 2026-07-15 (branch `feature/dashboard-mux-adapter`):** the SIGTERM root
+> cause, #1, #2, #4, and #7 are FIXED, and `dashboard_controller.py` was rewritten as
+> a thin adapter that drives the MUX over `/sgr532/bag_control` instead of spawning
+> its own rosbag processes — which makes #12–#15 obsolete (the code they describe no
+> longer exists). Items are marked ✅ FIXED / ♻️ OBSOLETE inline; unmarked items are
+> still open.
+
 ---
 
-## TL;DR — why "nothing is saved"
+## TL;DR — why "nothing is saved" — ✅ FIXED 2026-07-15
+
+`_stop_subprocess()` now sends SIGINT (10 s grace, then kill), a
+`rospy.on_shutdown` handler finalizes any child rosbag, and `_playable_path()`
+falls back to a nonempty `.bag.active`. Original analysis kept below.
 
 `rosbag record -O slot_N` writes to `slot_N.bag.active` for the entire recording and
 only renames it to `slot_N.bag` (and writes the index) on a **clean SIGINT**.
@@ -57,7 +68,9 @@ Severity tags: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low.
 
 ### Cross-system
 
-1. 🔴 **Dashboard playback physically drives the arm, ungated.**
+1. 🔴 ✅ FIXED 2026-07-15 — dashboard playback is now routed through the MUX
+   (`PLAY:N` on `/sgr532/bag_control`), so it is gated and pre-positioned.
+   **Dashboard playback physically drives the arm, ungated.**
    `dashboard_controller.py:121` replays `/sgr532/vr_target_pose`;
    `light_ik_solver.py:133-187` consumes it as live VR input and publishes IK goals;
    the MUX (`arm_bag_recorder.py:231`) only drops IK goals when **its own** state is
@@ -67,7 +80,10 @@ Severity tags: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low.
    *Fix:* route dashboard playback through the MUX (`PLAY:N` on `/sgr532/bag_control`)
    or add an explicit arm-live gate before replayed poses reach the solver.
 
-2. 🟠 **MUX `RECORDING` + dashboard playback = unintended motion gets recorded.**
+2. 🟠 ✅ FIXED 2026-07-15 — the dashboard now mirrors `/sgr532/bag_status` and
+   refuses record/play unless the MUX is `IDLE`; there is no second rosbag
+   spawner left to conflict with.
+   **MUX `RECORDING` + dashboard playback = unintended motion gets recorded.**
    `_ik_goal_callback` only early-returns in `PLAYING` (`arm_bag_recorder.py:231-235`),
    so during a MUX recording, dashboard-replayed poses still drive the arm and are
    captured into the joint bag.
@@ -81,7 +97,9 @@ Severity tags: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low.
 
 ### `arm_bag_recorder.py` (MUX) — beyond the SIGTERM root cause
 
-4. 🟠 **No `rospy.on_shutdown` handler → orphaned rosbag children.** [both]
+4. 🟠 ✅ FIXED 2026-07-15 — `rospy.on_shutdown(self._shutdown_handler)` SIGINTs
+   the child rosbag.
+   **No `rospy.on_shutdown` handler → orphaned rosbag children.** [both]
    `__main__` (`:271-276`) just spins. Ctrl+C on roslaunch mid-record orphans the
    `rosbag` wrapper + C++ `record` grandchild (keeps writing `.bag.active` forever);
    an orphaned `rosbag play` keeps driving the arm after the MUX dies.
@@ -103,7 +121,10 @@ Severity tags: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low.
    *Fix:* run playback startup on a worker thread with an abort flag, or release the
    lock during the peek/pre-position phase.
 
-7. 🟡 **Gripper twitches during the joints-mode peek.** [both]
+7. 🟡 ✅ FIXED 2026-07-15 — the joints peek now voids `vr_target_pose` and
+   `gripper/command` like the EE peek (also closes the theoretical t=0
+   pose leak to `light_ik_solver`).
+   **Gripper twitches during the joints-mode peek.** [both]
    `_peek_initial_positions` (`:94-99`) remaps only `joint_states`; the bag's first
    `/sgr532/gripper/command` goes straight to hardware during the throwaway
    `rosbag play -r 0` peek — before playback even starts. The worktree voids these
@@ -129,6 +150,10 @@ Severity tags: 🔴 critical · 🟠 high · 🟡 medium · ⚪ low.
     without `cancel_all_goals` — last in-flight goal keeps executing.
 
 ### `dashboard_controller.py`
+
+(2026-07-15 rewrite: the node is now a thin MUX adapter with no subprocesses —
+#12–#15 below are ♻️ OBSOLETE; #11 still applies to the size-based
+`slot_has_data`.)
 
 11. 🟡 **Empty (zero-message) bags report as having data.**
     `slot_has_data` (`:47-51`) only checks `getsize > 0`; a bag that captured zero
