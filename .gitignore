@@ -31,3 +31,8 @@ stats-cache.json
 
 # --- Python build artifacts ---
 __pycache__/
+
+# --- Recorded bag data directories ---
+recordings/
+playback_captures/
+dashboard_bags/
