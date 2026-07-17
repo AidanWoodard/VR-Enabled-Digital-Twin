@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 
+import csv
 import math
 import os
 import signal
 import subprocess
 import threading
+import time
 
 import actionlib
 import rospy
@@ -16,6 +18,7 @@ from std_msgs.msg import String
 from trajectory_msgs.msg import JointTrajectoryPoint
 
 RECORDINGS_DIR = os.path.expanduser("~/ROS_Files/sagittarius_ws/recordings")
+CAPTURE_DIR = os.path.join(RECORDINGS_DIR, "playbacks")
 NUM_SLOTS = 5
 JOINT_NAMES = ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6']
 PLAYBACK_RATE_HZ = 10
@@ -46,6 +49,7 @@ class ArmBagRecorder:
         rospy.init_node("arm_bag_recorder", anonymous=False)
 
         os.makedirs(RECORDINGS_DIR, exist_ok=True)
+        os.makedirs(CAPTURE_DIR, exist_ok=True)
 
         self._state = "IDLE"
         self._active_slot = None
@@ -53,6 +57,9 @@ class ArmBagRecorder:
         self._state_lock = threading.Lock()
         self._latest_real_js = None
         self._last_ee_pose = None
+        self._capture_file = None
+        self._capture_writer = None
+        self._capture_start = None
 
         self._playback_mode = rospy.get_param("~playback_mode", "joints")
         if self._playback_mode not in ("joints", "ee"):
@@ -146,6 +153,27 @@ class ArmBagRecorder:
         # roslaunch mid-record orphans the recorder (bag stuck as .bag.active)
         # and an orphaned rosbag play keeps driving the arm.
         self._stop_subprocess()
+        self._stop_capture()
+
+    def _start_capture(self, slot, mode):
+        # Real hardware encoder feedback only — replayed joint_states are
+        # always remapped off /sgr532/joint_states during playback (both
+        # modes), so whatever _real_js_callback sees here is purely what the
+        # arm actually did.
+        ts = time.strftime("%Y%m%d-%H%M%S")
+        path = os.path.join(CAPTURE_DIR, f"slot_{slot}_{mode}_{ts}.csv")
+        self._capture_file = open(path, "w", newline="")
+        self._capture_writer = csv.writer(self._capture_file)
+        self._capture_writer.writerow(["time"] + JOINT_NAMES)
+        self._capture_start = rospy.Time.now()
+        rospy.loginfo(f"[BagRecorder] Capturing joint angles to {path}")
+
+    def _stop_capture(self):
+        if self._capture_file is not None:
+            self._capture_file.close()
+        self._capture_file = None
+        self._capture_writer = None
+        self._capture_start = None
 
     def _playable_path(self, n):
         """Slot's finalized .bag, or a crash-orphaned .bag.active as fallback."""
@@ -356,6 +384,7 @@ class ArmBagRecorder:
         # so light_ik_solver never sees replayed poses. Gripper commands are NOT
         # remapped — they go directly to the gripper hardware, which is correct
         # during playback.
+        self._start_capture(slot, "joints")
         self._proc = subprocess.Popen(
             ["rosbag", "play", bag_path,
              f"/sgr532/joint_states:={PLAYBACK_JS_TOPIC}",
@@ -392,6 +421,7 @@ class ArmBagRecorder:
         # vr_target_pose goes to the shadow topic this node solves IK on;
         # joint_states to a void topic so replayed encoder data cannot pollute
         # live feedback. Gripper passthrough, same as joints mode.
+        self._start_capture(slot, "ee")
         self._proc = subprocess.Popen(
             ["rosbag", "play", bag_path,
              f"/sgr532/vr_target_pose:={PLAYBACK_EE_TOPIC}",
@@ -406,6 +436,7 @@ class ArmBagRecorder:
 
     def _cmd_stop(self):
         self._stop_subprocess()
+        self._stop_capture()
         self._arm_client.cancel_all_goals()
         self._last_ee_pose = None
         self._state = "IDLE"
@@ -432,6 +463,11 @@ class ArmBagRecorder:
 
     def _real_js_callback(self, msg):
         self._latest_real_js = msg
+        if self._capture_writer is not None:
+            name_to_pos = dict(zip(msg.name, msg.position))
+            elapsed = (rospy.Time.now() - self._capture_start).to_sec()
+            self._capture_writer.writerow(
+                [elapsed] + [name_to_pos.get(j, 0.0) for j in JOINT_NAMES])
 
     def _ik_goal_callback(self, goal):
         with self._state_lock:
@@ -491,6 +527,7 @@ class ArmBagRecorder:
                     f"[BagRecorder] Playback finished (exit {self._proc.returncode}). → IDLE"
                 )
                 self._proc = None
+                self._stop_capture()
                 self._state = "IDLE"
                 self._active_slot = None
                 self._last_ee_pose = None

@@ -34,5 +34,4 @@ __pycache__/
 
 # --- Recorded bag data directories ---
 recordings/
-playback_captures/
 dashboard_bags/
