@@ -42,6 +42,10 @@ IK_GROUP = "sagittarius_arm"
 # exactly the poses live teleop would have acted on.
 EE_POS_THRESHOLD = 0.003
 EE_ROT_THRESHOLD = 0.02
+# Fixed leading-row counts to drop from each mode's capture CSV after the
+# fact — empirically how many samples of pre-positioning settling motion
+# show up before the arm is actually still at the bag's start pose.
+CAPTURE_TRIM_ROWS = {"joints": 8, "ee": 5}
 
 
 class ArmBagRecorder:
@@ -60,6 +64,8 @@ class ArmBagRecorder:
         self._capture_file = None
         self._capture_writer = None
         self._capture_start = None
+        self._capture_path = None
+        self._capture_mode = None
 
         self._playback_mode = rospy.get_param("~playback_mode", "joints")
         if self._playback_mode not in ("joints", "ee"):
@@ -159,21 +165,54 @@ class ArmBagRecorder:
         # Real hardware encoder feedback only — replayed joint_states are
         # always remapped off /sgr532/joint_states during playback (both
         # modes), so whatever _real_js_callback sees here is purely what the
-        # arm actually did.
+        # arm actually did. Every sample is written as it arrives (no runtime
+        # skipping) — the leading pre-positioning rows are trimmed once, after
+        # the fact, in _stop_capture -> _trim_capture.
         ts = time.strftime("%Y%m%d-%H%M%S")
         path = os.path.join(CAPTURE_DIR, f"slot_{slot}_{mode}_{ts}.csv")
         self._capture_file = open(path, "w", newline="")
         self._capture_writer = csv.writer(self._capture_file)
         self._capture_writer.writerow(["time"] + JOINT_NAMES)
         self._capture_start = rospy.Time.now()
+        self._capture_path = path
+        self._capture_mode = mode
         rospy.loginfo(f"[BagRecorder] Capturing joint angles to {path}")
 
     def _stop_capture(self):
         if self._capture_file is not None:
             self._capture_file.close()
+            self._trim_capture(self._capture_path, self._capture_mode)
         self._capture_file = None
         self._capture_writer = None
         self._capture_start = None
+        self._capture_path = None
+        self._capture_mode = None
+
+    def _trim_capture(self, path, mode):
+        # Drop the fixed number of leading rows still showing pre-position
+        # settling motion, then re-zero the remaining rows' time column so
+        # the file starts at ~0 with no blank/offset lead-in — never leaves
+        # the dropped rows' timestamps as gaps, just shifts everything down.
+        trim_n = CAPTURE_TRIM_ROWS.get(mode, 0)
+        if trim_n <= 0:
+            return
+        with open(path, newline="") as f:
+            rows = list(csv.reader(f))
+        header, data = rows[0], rows[1:]
+        if len(data) <= trim_n:
+            rospy.logwarn(
+                f"[BagRecorder] Capture {path} has only {len(data)} row(s); "
+                f"skipping trim of leading {trim_n}."
+            )
+            return
+        kept = data[trim_n:]
+        t0 = float(kept[0][0])
+        for row in kept:
+            row[0] = f"{float(row[0]) - t0:.6f}"
+        with open(path, "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(kept)
 
     def _playable_path(self, n):
         """Slot's finalized .bag, or a crash-orphaned .bag.active as fallback."""
