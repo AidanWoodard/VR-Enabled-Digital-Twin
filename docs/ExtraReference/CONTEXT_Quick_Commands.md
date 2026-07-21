@@ -18,11 +18,11 @@ sgrlaunch			(source dir, start Sagittarius robot arm driver)
 
 camlaunch			(source dir, launch dual-webcam setup)
 
+fullsyslaunch (launch everything but dual-webcam feeds)
+
+fullsyseelaunch (launch everything like usual, but use the IK-based playback instead of joint-angle like the above command)
 
 
 ===================================
-
-CURRENT SUDO PASSWORD: 107Flasher23
-
 
 
