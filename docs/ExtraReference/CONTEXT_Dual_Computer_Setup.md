@@ -4,14 +4,14 @@ This is a walk-through of setting up this VR digital-twin system on two computer
 
 
 =====Overview=====
-[ Windows VR Host ] (IP: 192.168.1.50)
+[ Windows VR Host ] (IP: 192.xxx.x.xx)
    └── Unity Engine Runtime
-   └── ROS-TCP-Connector (Configured to target 192.168.1.100:10000, NOT a ROS script, a C# unity script)
+   └── ROS-TCP-Connector (Configured to target 192.xxx.x.xxx:10000, NOT a ROS script, a C# unity script)
    └── VR Headset Runtime (Oculus/OpenXR/SteamVR)
           ▲
           │  Physical LAN (Wired Cat6 / Dedicated Router)
           ▼
-[ Linux Robot Host ] (IP: 192.168.1.100)
+[ Linux Robot Host ] (IP: 192.xxx.x.xxx)
    └── ROS Master (roscore) & ROS-TCP-Endpoint (Bound to 0.0.0.0:10000)
    └── Sagittarius Arm Driver Nodes
    └── Dual usb_cam Driver Nodes (Bus-separated physical webcams)
@@ -36,8 +36,8 @@ This is a walk-through of setting up this VR digital-twin system on two computer
 The computer with the VR world does not need any ROS environments running or a WSL window open, just the Unity scene and SteamVR. By setting the ROC_TCP_Connector script in the Unity game to look for the other computer's IP, it will act like there is nothing between the computers at all.
 
 As for the second computer that is connected to the robot physically, this needs to run the necessary ROS node scripts and launch files to connect the webcams and robot to the Unity scene. The only major alteration however is to export the ROS config IP such that it's looking for the connected computer:
-	export ROS_IP=192.168.1.100
-	export ROS_MASTER_URI=http://192.168.1.100:11311
+	export ROS_IP=192.xxx.x.xxx
+	export ROS_MASTER_URI=http://192.xxx.x.xxx:11311
 (or whatever the IP's are)
 
 This should be all you need! Physically:
