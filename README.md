@@ -10,7 +10,7 @@ This is repo attempts to **democratize technology,** where any operator unlimite
 
 This project was a 10-week **REU** (Research Experience for Undergraduates) program at **Kent State University** within Kent State's XR Lab and is funded by grants from the National Science Foundation.
 
-<img src="docs/ref-image.png" width="550"> <img src="docs/ref-video.gif" width="350">
+<img src="docs/ref-image.png" width="450"> <img src="docs/ref-video.gif" width="350">
 
 ## Getting Started
 
